@@ -20,7 +20,7 @@ const navItems = [
 export function Sidebar() {
   const pathname = usePathname()
   return (
-    <aside className="w-56 shrink-0 border-r bg-white h-screen flex flex-col">
+    <aside className="hidden md:flex w-56 shrink-0 border-r bg-white h-screen flex-col">
       <div className="px-6 py-5 border-b">
         <h1 className="font-bold text-lg text-gray-900">이나네 가족자산</h1>
         <p className="text-xs text-gray-400 mt-0.5">AI 에이전트 팀</p>
