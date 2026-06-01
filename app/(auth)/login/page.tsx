@@ -34,17 +34,17 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">이나네 가족자산</CardTitle>
+          <CardTitle className="text-2xl text-gray-900">이나네 가족자산</CardTitle>
           <p className="text-sm text-gray-500 mt-1">AI 에이전트 팀이 함께합니다</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1">
-              <Label htmlFor="email">이메일</Label>
+              <Label htmlFor="email" className="text-gray-700">이메일</Label>
               <Input id="email" name="email" type="email" placeholder="email@example.com" required />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="password">비밀번호</Label>
+              <Label htmlFor="password" className="text-gray-700">비밀번호</Label>
               <Input id="password" name="password" type="password" required />
             </div>
             {error && <p className="text-sm text-red-500">{error}</p>}
