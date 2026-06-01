@@ -1,0 +1,68 @@
+'use client'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Badge } from '@/components/ui/badge'
+
+interface Holding {
+  id: string
+  ticker: string
+  name: string
+  quantity: string
+  avgPrice: string
+  currentPrice: string
+}
+
+const fmt = (n: number) =>
+  new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 0 }).format(n)
+
+export function HoldingsTable({ holdings }: { holdings: Holding[] }) {
+  if (!holdings.length) {
+    return <p className="text-sm text-gray-400 py-4 text-center">보유 종목이 없습니다. 설정에서 추가하세요.</p>
+  }
+
+  const totalValue = holdings.reduce((s, h) => s + Number(h.quantity) * Number(h.currentPrice), 0)
+
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>종목</TableHead>
+          <TableHead className="text-right">수량</TableHead>
+          <TableHead className="text-right">평균단가</TableHead>
+          <TableHead className="text-right">현재가</TableHead>
+          <TableHead className="text-right">평가금액</TableHead>
+          <TableHead className="text-right">수익률</TableHead>
+          <TableHead className="text-right">비중</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {holdings.map(h => {
+          const qty = Number(h.quantity)
+          const avg = Number(h.avgPrice)
+          const cur = Number(h.currentPrice)
+          const value = qty * cur
+          const cost = qty * avg
+          const pct = cost > 0 ? ((value - cost) / cost) * 100 : 0
+          const weight = totalValue > 0 ? (value / totalValue) * 100 : 0
+          return (
+            <TableRow key={h.id}>
+              <TableCell>
+                <div className="font-medium text-gray-900">{h.ticker}</div>
+                <div className="text-xs text-gray-400">{h.name}</div>
+              </TableCell>
+              <TableCell className="text-right text-sm">{qty.toLocaleString()}</TableCell>
+              <TableCell className="text-right text-sm">{fmt(avg)}</TableCell>
+              <TableCell className="text-right text-sm">{fmt(cur)}</TableCell>
+              <TableCell className="text-right font-medium">{fmt(value)}</TableCell>
+              <TableCell className="text-right">
+                <Badge variant={pct >= 0 ? 'default' : 'destructive'} className="text-xs">
+                  {pct >= 0 ? '+' : ''}{pct.toFixed(2)}%
+                </Badge>
+              </TableCell>
+              <TableCell className="text-right text-xs text-gray-500">{weight.toFixed(1)}%</TableCell>
+            </TableRow>
+          )
+        })}
+      </TableBody>
+    </Table>
+  )
+}

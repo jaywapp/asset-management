@@ -1,0 +1,103 @@
+import {
+  pgTable, pgEnum, text, integer, boolean,
+  decimal, timestamp,
+} from 'drizzle-orm/pg-core'
+import { createId } from '@paralleldrive/cuid2'
+
+export const userRoleEnum = pgEnum('user_role', ['husband', 'wife'])
+export const accountTypeEnum = pgEnum('account_type', ['stock', 'fund', 'deposit', 'crypto', 'saving'])
+export const txTypeEnum = pgEnum('tx_type', ['buy', 'sell', 'dividend', 'deposit', 'withdraw'])
+export const incomeCatEnum = pgEnum('income_category', ['salary', 'bonus', 'dividend', 'rental', 'freelance', 'other'])
+export const expenseCatEnum = pgEnum('expense_category', ['food', 'transport', 'housing', 'medical', 'education', 'leisure', 'subscription', 'other'])
+export const reportTypeEnum = pgEnum('report_type', ['daily', 'weekly', 'monthly', 'on_demand'])
+
+export const users = pgTable('users', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  email: text('email').notNull().unique(),
+  hashedPassword: text('hashed_password').notNull(),
+  role: userRoleEnum('role').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+export const accounts = pgTable('accounts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  type: accountTypeEnum('type').notNull(),
+  institution: text('institution'),
+  currency: text('currency').notNull().default('KRW'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+export const holdings = pgTable('holdings', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  accountId: text('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  ticker: text('ticker').notNull(),
+  name: text('name').notNull(),
+  quantity: decimal('quantity', { precision: 18, scale: 8 }).notNull(),
+  avgPrice: decimal('avg_price', { precision: 18, scale: 4 }).notNull(),
+  currentPrice: decimal('current_price', { precision: 18, scale: 4 }).notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
+export const transactions = pgTable('transactions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  accountId: text('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  type: txTypeEnum('type').notNull(),
+  ticker: text('ticker'),
+  quantity: decimal('quantity', { precision: 18, scale: 8 }),
+  price: decimal('price', { precision: 18, scale: 4 }),
+  fee: decimal('fee', { precision: 18, scale: 4 }).default('0'),
+  date: timestamp('date').notNull(),
+  memo: text('memo'),
+})
+
+export const realEstate = pgTable('real_estate', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  address: text('address'),
+  purchasePrice: decimal('purchase_price', { precision: 18, scale: 0 }).notNull(),
+  currentValue: decimal('current_value', { precision: 18, scale: 0 }).notNull(),
+  purchaseDate: timestamp('purchase_date').notNull(),
+  monthlyRentalIncome: decimal('monthly_rental_income', { precision: 18, scale: 0 }).default('0'),
+  propertyTax: decimal('property_tax', { precision: 18, scale: 0 }).default('0'),
+})
+
+export const income = pgTable('income', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  category: incomeCatEnum('category').notNull(),
+  amount: decimal('amount', { precision: 18, scale: 0 }).notNull(),
+  description: text('description'),
+  date: timestamp('date').notNull(),
+  isRecurring: boolean('is_recurring').default(false),
+})
+
+export const expenses = pgTable('expenses', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  category: expenseCatEnum('category').notNull(),
+  amount: decimal('amount', { precision: 18, scale: 0 }).notNull(),
+  description: text('description'),
+  date: timestamp('date').notNull(),
+  isFixed: boolean('is_fixed').default(false),
+})
+
+export const budgets = pgTable('budgets', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  category: expenseCatEnum('category').notNull(),
+  amount: decimal('amount', { precision: 18, scale: 0 }).notNull(),
+  month: integer('month').notNull(),
+  year: integer('year').notNull(),
+})
+
+export const aiReports = pgTable('ai_reports', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  type: reportTypeEnum('type').notNull(),
+  agent: text('agent').notNull(),
+  content: text('content').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
