@@ -34,7 +34,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">가족 자산관리</CardTitle>
+          <CardTitle className="text-2xl">이나네 가족자산</CardTitle>
           <p className="text-sm text-gray-500 mt-1">AI 에이전트 팀이 함께합니다</p>
         </CardHeader>
         <CardContent>

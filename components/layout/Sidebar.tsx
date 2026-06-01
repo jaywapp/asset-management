@@ -22,7 +22,7 @@ export function Sidebar() {
   return (
     <aside className="w-56 shrink-0 border-r bg-white h-screen flex flex-col">
       <div className="px-6 py-5 border-b">
-        <h1 className="font-bold text-lg text-gray-900">가족 자산관리</h1>
+        <h1 className="font-bold text-lg text-gray-900">이나네 가족자산</h1>
         <p className="text-xs text-gray-400 mt-0.5">AI 에이전트 팀</p>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1">

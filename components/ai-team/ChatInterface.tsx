@@ -15,7 +15,7 @@ const QUICK_PROMPTS = [
 
 export function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: '안녕하세요! 가족 자산관리 CFO입니다. 자산에 대해 궁금한 것이 있으면 무엇이든 물어보세요.' },
+    { role: 'assistant', content: '안녕하세요! 이나네 가족자산 CFO입니다. 자산에 대해 궁금한 것이 있으면 무엇이든 물어보세요.' },
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
