@@ -101,3 +101,10 @@ export const aiReports = pgTable('ai_reports', {
   content: text('content').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
+
+export const agentSettings = pgTable('agent_settings', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  agentName: text('agent_name').notNull().unique(),
+  systemPrompt: text('system_prompt').notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})

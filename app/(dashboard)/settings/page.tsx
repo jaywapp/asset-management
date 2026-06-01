@@ -6,11 +6,25 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Plus, Building2 } from 'lucide-react'
+import { Plus, Building2, Bot, RotateCcw } from 'lucide-react'
+
+const AGENT_LABELS: Record<string, string> = {
+  cfo: 'CFO (총괄)',
+  investment: '투자분석',
+  risk: '리스크 매니저',
+  'real-estate': '부동산',
+  budget: '재무흐름',
+}
+
+interface AgentPrompt { agentName: string; systemPrompt: string; isCustom: boolean }
 
 export default function SettingsPage() {
   const [accounts, setAccounts] = useState<any[]>([])
   const [accountForm, setAccountForm] = useState({ name: '', type: 'stock', institution: '' })
+  const [prompts, setPrompts] = useState<AgentPrompt[]>([])
+  const [editingAgent, setEditingAgent] = useState<string | null>(null)
+  const [editText, setEditText] = useState('')
+  const [savingPrompt, setSavingPrompt] = useState(false)
   const [holdingForm, setHoldingForm] = useState({
     accountId: '', ticker: '', name: '', quantity: '', avgPrice: '', currentPrice: '',
   })
@@ -24,7 +38,33 @@ export default function SettingsPage() {
     if (res.ok) setAccounts(await res.json())
   }
 
-  useEffect(() => { loadAccounts() }, [])
+  async function loadPrompts() {
+    const res = await fetch('/api/settings/prompts')
+    if (res.ok) setPrompts(await res.json())
+  }
+
+  useEffect(() => { loadAccounts(); loadPrompts() }, [])
+
+  async function savePrompt(agentName: string) {
+    setSavingPrompt(true)
+    await fetch('/api/settings/prompts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentName, systemPrompt: editText }),
+    })
+    setEditingAgent(null)
+    await loadPrompts()
+    setSavingPrompt(false)
+  }
+
+  async function resetPrompt(agentName: string) {
+    await fetch('/api/settings/prompts', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentName }),
+    })
+    await loadPrompts()
+  }
 
   async function addAccount(e: React.FormEvent) {
     e.preventDefault()
@@ -65,10 +105,11 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-bold">설정</h1>
 
       <Tabs defaultValue="accounts">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="accounts">계좌 관리</TabsTrigger>
           <TabsTrigger value="holdings">종목 추가</TabsTrigger>
           <TabsTrigger value="realestate">부동산 추가</TabsTrigger>
+          <TabsTrigger value="prompts">AI 지침</TabsTrigger>
         </TabsList>
 
         <TabsContent value="accounts" className="mt-4 space-y-4">
@@ -178,6 +219,55 @@ export default function SettingsPage() {
               </form>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="prompts" className="mt-4 space-y-3">
+          <p className="text-xs text-gray-500">각 AI 에이전트의 시스템 지침을 편집합니다. 빈 칸으로 저장하면 기본값으로 초기화됩니다.</p>
+          {prompts.map(p => (
+            <Card key={p.agentName}>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Bot size={14} className="text-blue-500" />
+                    {AGENT_LABELS[p.agentName] ?? p.agentName}
+                    {p.isCustom && <span className="text-xs text-blue-500 font-normal">(커스텀)</span>}
+                  </CardTitle>
+                  <div className="flex gap-1">
+                    {p.isCustom && (
+                      <Button variant="ghost" size="sm" onClick={() => resetPrompt(p.agentName)}
+                        className="text-xs text-gray-400 h-7 px-2">
+                        <RotateCcw size={12} className="mr-1" />기본값
+                      </Button>
+                    )}
+                    <Button variant="outline" size="sm" className="h-7 text-xs"
+                      onClick={() => { setEditingAgent(p.agentName); setEditText(p.systemPrompt) }}>
+                      편집
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              {editingAgent === p.agentName ? (
+                <CardContent>
+                  <textarea
+                    value={editText}
+                    onChange={e => setEditText(e.target.value)}
+                    rows={5}
+                    className="w-full text-sm border rounded-md p-2 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                  <div className="flex gap-2 mt-2">
+                    <Button size="sm" onClick={() => savePrompt(p.agentName)} disabled={savingPrompt}>
+                      {savingPrompt ? '저장 중...' : '저장'}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setEditingAgent(null)}>취소</Button>
+                  </div>
+                </CardContent>
+              ) : (
+                <CardContent>
+                  <p className="text-xs text-gray-500 whitespace-pre-wrap line-clamp-3">{p.systemPrompt}</p>
+                </CardContent>
+              )}
+            </Card>
+          ))}
         </TabsContent>
       </Tabs>
     </div>

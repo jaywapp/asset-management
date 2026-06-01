@@ -1,15 +1,13 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { agentTools, executeToolCall } from './tools'
+import { getAgentPrompt } from './prompts'
 import { db } from '@/lib/db'
 import { aiReports } from '@/lib/db/schema'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-const SYSTEM = `당신은 이나네 가족자산 CFO입니다. 포트폴리오, 부동산, 현금흐름 데이터를 조회하여
-명확하고 실용적인 한국어 분석을 제공합니다. 숫자는 한국 원화(₩) 형식으로 표시하고,
-전문 용어보다 이해하기 쉬운 표현을 사용하세요.`
-
 export async function runCFOAgent(prompt: string, userId: string): Promise<string> {
+  const SYSTEM = await getAgentPrompt('cfo')
   const messages: Anthropic.MessageParam[] = [{ role: 'user', content: prompt }]
 
   let response = await client.messages.create({
