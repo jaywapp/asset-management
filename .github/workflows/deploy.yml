@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -22,23 +27,23 @@ jobs:
         run: npm install -g vercel
 
       - name: Pull Vercel Environment
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=production
 
       - name: Set Environment Variables on Vercel
         run: |
-          echo "${{ secrets.DATABASE_URL }}" | vercel env add DATABASE_URL production --token=${{ secrets.VERCEL_TOKEN }} --force 2>/dev/null || true
-          echo "${{ secrets.AUTH_SECRET }}" | vercel env add AUTH_SECRET production --token=${{ secrets.VERCEL_TOKEN }} --force 2>/dev/null || true
-          echo "${{ secrets.ANTHROPIC_API_KEY }}" | vercel env add ANTHROPIC_API_KEY production --token=${{ secrets.VERCEL_TOKEN }} --force 2>/dev/null || true
-          echo "${{ secrets.CRON_SECRET }}" | vercel env add CRON_SECRET production --token=${{ secrets.VERCEL_TOKEN }} --force 2>/dev/null || true
-          echo "https://family-asset-mgmt.vercel.app" | vercel env add NEXTAUTH_URL production --token=${{ secrets.VERCEL_TOKEN }} --force 2>/dev/null || true
+          echo "${{ secrets.DATABASE_URL }}" | vercel env add DATABASE_URL production --force 2>/dev/null || true
+          echo "${{ secrets.AUTH_SECRET }}" | vercel env add AUTH_SECRET production --force 2>/dev/null || true
+          echo "${{ secrets.ANTHROPIC_API_KEY }}" | vercel env add ANTHROPIC_API_KEY production --force 2>/dev/null || true
+          echo "${{ secrets.CRON_SECRET }}" | vercel env add CRON_SECRET production --force 2>/dev/null || true
+          echo "https://family-asset-mgmt.vercel.app" | vercel env add NEXTAUTH_URL production --force 2>/dev/null || true
 
       - name: Build Project
-        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel build --prod
 
       - name: Deploy to Production
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel deploy --prebuilt --prod
 
       - name: Deploy Preview (PR)
         if: github.event_name == 'pull_request'
-        run: vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel deploy --prebuilt
