@@ -98,7 +98,7 @@ export default function BudgetPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          category: entry.category ?? (isIncome ? 'other' : 'other'),
+          category: entry.category ?? 'other',
           amount: String(Math.abs(Number(entry.amount))),
           description: String(entry.description ?? ''),
           date: String(entry.date ?? new Date().toISOString().split('T')[0]),
@@ -149,17 +149,12 @@ export default function BudgetPage() {
         <Card className="border-purple-200">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
-              <Camera size={14} className="text-purple-500" />
-              AI 이미지 분석
+              <Camera size={14} className="text-purple-500" />AI 이미지 분석
             </CardTitle>
-            <p className="text-xs text-gray-400">영수증, 카드 사용내역, 은행 출금내역, 자동이체 내역을 촬영하거나 업로드하세요.</p>
+            <p className="text-xs text-gray-400">영수증, 카드 사용내역, 은행 출금내역을 업로드하세요.</p>
           </CardHeader>
           <CardContent>
-            <ImageAnalyzer
-              context="budget"
-              onResult={handleImageResult}
-              label="거래내역 이미지 업로드"
-            />
+            <ImageAnalyzer context="budget" onResult={handleImageResult} label="거래내역 이미지 업로드" />
           </CardContent>
         </Card>
       )}
@@ -189,7 +184,7 @@ export default function BudgetPage() {
             <div className="flex gap-2 pt-2">
               <Button size="sm" onClick={savePendingEntries} disabled={saving}
                 className="bg-green-600 hover:bg-green-700">
-                {saving ? '저장 중...' : `${pendingEntries.length}건 모두 저장`}
+                {saving ? '저장 중...' : `${pendingEntries.length}건 저장`}
               </Button>
               <Button size="sm" variant="ghost" onClick={() => setPendingEntries([])}>취소</Button>
             </div>
