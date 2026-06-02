@@ -1,21 +1,67 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { HoldingsTable } from '@/components/portfolio/HoldingsTable'
 import { AllocationChart } from '@/components/portfolio/AllocationChart'
+import { Plus, X } from 'lucide-react'
 
 interface Holding {
   id: string; ticker: string; name: string
   quantity: string; avgPrice: string; currentPrice: string
   accountId: string
 }
+interface Account { id: string; name: string; type: string }
+
+const ACCOUNT_TYPES: Record<string, string> = {
+  stock: '주식', fund: '펀드', deposit: '예금/적금', crypto: '가상화폐', saving: '저축',
+}
 
 export default function PortfolioPage() {
   const [holdings, setHoldings] = useState<Holding[]>([])
+  const [accounts, setAccounts] = useState<Account[]>([])
+  const [showForm, setShowForm] = useState<'holding' | 'account' | null>(null)
 
-  useEffect(() => {
-    fetch('/api/portfolio/holdings').then(r => r.json()).then(setHoldings)
-  }, [])
+  const [accountForm, setAccountForm] = useState({ name: '', type: 'stock', institution: '' })
+  const [holdingForm, setHoldingForm] = useState({
+    accountId: '', ticker: '', name: '', quantity: '', avgPrice: '', currentPrice: '',
+  })
+
+  async function load() {
+    const [h, a] = await Promise.all([
+      fetch('/api/portfolio/holdings').then(r => r.json()),
+      fetch('/api/portfolio/accounts').then(r => r.json()),
+    ])
+    setHoldings(h)
+    setAccounts(a)
+  }
+
+  useEffect(() => { load() }, [])
+
+  async function addAccount(e: React.FormEvent) {
+    e.preventDefault()
+    await fetch('/api/portfolio/accounts', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(accountForm),
+    })
+    setAccountForm({ name: '', type: 'stock', institution: '' })
+    setShowForm(null)
+    await load()
+  }
+
+  async function addHolding(e: React.FormEvent) {
+    e.preventDefault()
+    await fetch('/api/portfolio/holdings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(holdingForm),
+    })
+    setHoldingForm({ accountId: '', ticker: '', name: '', quantity: '', avgPrice: '', currentPrice: '' })
+    setShowForm(null)
+    await load()
+  }
 
   const totalValue = holdings.reduce((s, h) => s + Number(h.quantity) * Number(h.currentPrice), 0)
   const totalCost = holdings.reduce((s, h) => s + Number(h.quantity) * Number(h.avgPrice), 0)
@@ -35,42 +81,132 @@ export default function PortfolioPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">포트폴리오</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">포트폴리오</h1>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowForm(showForm === 'account' ? null : 'account')}>
+            <Plus size={14} className="mr-1" />계좌 추가
+          </Button>
+          <Button size="sm" onClick={() => setShowForm(showForm === 'holding' ? null : 'holding')}>
+            <Plus size={14} className="mr-1" />종목 추가
+          </Button>
+        </div>
+      </div>
+
+      {/* 계좌 추가 폼 */}
+      {showForm === 'account' && (
+        <Card className="border-blue-200">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">계좌 추가</CardTitle>
+              <button onClick={() => setShowForm(null)}><X size={16} className="text-gray-400" /></button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={addAccount} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div><Label>계좌명</Label>
+                <Input value={accountForm.name} onChange={e => setAccountForm(p => ({ ...p, name: e.target.value }))}
+                  placeholder="예: 삼성증권 주식" required />
+              </div>
+              <div><Label>유형</Label>
+                <Select value={accountForm.type} onValueChange={v => setAccountForm(p => ({ ...p, type: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(ACCOUNT_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>금융기관</Label>
+                <Input value={accountForm.institution} onChange={e => setAccountForm(p => ({ ...p, institution: e.target.value }))}
+                  placeholder="예: 삼성증권" />
+              </div>
+              <div className="sm:col-span-3"><Button type="submit" size="sm">추가</Button></div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 종목 추가 폼 */}
+      {showForm === 'holding' && (
+        <Card className="border-green-200">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">종목 추가</CardTitle>
+              <button onClick={() => setShowForm(null)}><X size={16} className="text-gray-400" /></button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {accounts.length === 0 ? (
+              <p className="text-sm text-gray-400">먼저 계좌를 추가해주세요.</p>
+            ) : (
+              <form onSubmit={addHolding} className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="col-span-2 sm:col-span-3"><Label>계좌 선택</Label>
+                  <Select value={holdingForm.accountId} onValueChange={v => setHoldingForm(p => ({ ...p, accountId: v }))}>
+                    <SelectTrigger><SelectValue placeholder="계좌 선택" /></SelectTrigger>
+                    <SelectContent>
+                      {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name} ({ACCOUNT_TYPES[a.type]})</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>티커</Label>
+                  <Input value={holdingForm.ticker} onChange={e => setHoldingForm(p => ({ ...p, ticker: e.target.value }))}
+                    placeholder="005930" required />
+                </div>
+                <div><Label>종목명</Label>
+                  <Input value={holdingForm.name} onChange={e => setHoldingForm(p => ({ ...p, name: e.target.value }))}
+                    placeholder="삼성전자" required />
+                </div>
+                <div><Label>수량</Label>
+                  <Input type="number" step="any" value={holdingForm.quantity}
+                    onChange={e => setHoldingForm(p => ({ ...p, quantity: e.target.value }))} required />
+                </div>
+                <div><Label>평균단가 (원)</Label>
+                  <Input type="number" value={holdingForm.avgPrice}
+                    onChange={e => setHoldingForm(p => ({ ...p, avgPrice: e.target.value }))} required />
+                </div>
+                <div><Label>현재가 (원)</Label>
+                  <Input type="number" value={holdingForm.currentPrice}
+                    onChange={e => setHoldingForm(p => ({ ...p, currentPrice: e.target.value }))} required />
+                </div>
+                <div className="col-span-2 sm:col-span-3">
+                  <Button type="submit" size="sm" disabled={!holdingForm.accountId}>추가</Button>
+                </div>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="pt-4">
-            <p className="text-xs text-gray-500">총 평가금액</p>
-            <p className="text-xl font-bold text-gray-900">{fmt(totalValue)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <p className="text-xs text-gray-500">총 수익금</p>
-            <p className={`text-xl font-bold ${totalGainLoss >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-              {totalGainLoss >= 0 ? '+' : ''}{fmt(totalGainLoss)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <p className="text-xs text-gray-500">총 수익률</p>
-            <p className={`text-xl font-bold ${totalGainLossPct >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-              {totalGainLossPct >= 0 ? '+' : ''}{totalGainLossPct.toFixed(2)}%
-            </p>
-          </CardContent>
-        </Card>
+        <Card><CardContent className="pt-4">
+          <p className="text-xs text-gray-500">총 평가금액</p>
+          <p className="text-xl font-bold text-gray-900">{fmt(totalValue)}</p>
+        </CardContent></Card>
+        <Card><CardContent className="pt-4">
+          <p className="text-xs text-gray-500">총 수익금</p>
+          <p className={`text-xl font-bold ${totalGainLoss >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+            {totalGainLoss >= 0 ? '+' : ''}{fmt(totalGainLoss)}
+          </p>
+        </CardContent></Card>
+        <Card><CardContent className="pt-4">
+          <p className="text-xs text-gray-500">총 수익률</p>
+          <p className={`text-xl font-bold ${totalGainLossPct >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+            {totalGainLossPct >= 0 ? '+' : ''}{totalGainLossPct.toFixed(2)}%
+          </p>
+        </CardContent></Card>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader><CardTitle>자산배분</CardTitle></CardHeader>
-          <CardContent><AllocationChart data={allocationData} /></CardContent>
-        </Card>
-      </div>
+      {allocationData.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader><CardTitle>자산배분</CardTitle></CardHeader>
+            <CardContent><AllocationChart data={allocationData} /></CardContent>
+          </Card>
+        </div>
+      )}
 
       <Card>
-        <CardHeader><CardTitle>보유 종목</CardTitle></CardHeader>
+        <CardHeader><CardTitle>보유 종목 ({holdings.length})</CardTitle></CardHeader>
         <CardContent><HoldingsTable holdings={holdings} /></CardContent>
       </Card>
     </div>
