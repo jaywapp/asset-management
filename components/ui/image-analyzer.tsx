@@ -76,7 +76,7 @@ export function ImageAnalyzer({ context, onResult, label = '이미지로 입력'
 
   return (
     <div className="space-y-2">
-      <input ref={inputRef} type="file" accept="image/*" capture="environment"
+      <input ref={inputRef} type="file" accept="image/*"
         className="hidden" onChange={handleChange} />
 
       {!preview ? (
