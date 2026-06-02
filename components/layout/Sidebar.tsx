@@ -31,13 +31,13 @@ export function Sidebar() {
             key={href}
             href={href}
             className={cn(
-              'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+              'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
               pathname === href
                 ? 'bg-blue-50 text-blue-700'
                 : 'text-gray-600 hover:bg-gray-100'
             )}
           >
-            <Icon size={18} />
+            <Icon size={18} className="shrink-0" />
             {label}
           </Link>
         ))}
