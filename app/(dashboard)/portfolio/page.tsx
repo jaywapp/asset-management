@@ -37,7 +37,7 @@ export default function PortfolioPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">포트폴리오</h1>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-4">
             <p className="text-xs text-gray-500">총 평가금액</p>

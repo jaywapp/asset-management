@@ -113,7 +113,7 @@ export default function BudgetPage() {
       </div>
 
       {/* 요약 카드 */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 sm:grid-cols-3 gap-3">
         <Card className="border-green-100">
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-1">
