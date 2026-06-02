@@ -565,9 +565,9 @@ export default function BudgetPage() {
             {/* 1행: 금액 + 메모 */}
             <div className="flex gap-2 mb-2">
               <Input type="number" placeholder="금액 (원)" value={amount}
-                onChange={e => setAmount(e.target.value)} className="w-36 text-base" required />
+                onChange={e => setAmount(e.target.value)} className="flex-1 text-base" required />
               <Input placeholder="메모 (선택)" value={description}
-                onChange={e => setDescription(e.target.value)} className="flex-1" />
+                onChange={e => setDescription(e.target.value)} className="flex-[2]" />
             </div>
             {/* 2행: 날짜 + 추가 버튼 */}
             <div className="flex gap-2">
