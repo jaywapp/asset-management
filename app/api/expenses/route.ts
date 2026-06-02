@@ -1,3 +1,4 @@
+import { CACHE_SHORT, CACHE_LONG } from '@/lib/utils'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
@@ -19,7 +20,7 @@ export async function GET(req: Request) {
     lte(expenses.date, monthEnd),
   ))
   return NextResponse.json(rows, {
-    headers: { 'Cache-Control': 'private, max-age=10, stale-while-revalidate=30' },
+    headers: CACHE_SHORT,
   })
 }
 

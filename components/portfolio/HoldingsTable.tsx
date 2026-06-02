@@ -1,6 +1,7 @@
 'use client'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
+import { formatKRW } from '@/lib/utils'
+import { isDomestic, getExchangeLabel } from '@/lib/stock-utils'
 
 interface Holding {
   id: string
@@ -11,8 +12,7 @@ interface Holding {
   currentPrice: string
 }
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 0 }).format(n)
+const fmt = (n: number) => new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 0 }).format(n)
 
 export function HoldingsTable({ holdings }: { holdings: Holding[] }) {
   if (!holdings.length) {
@@ -43,12 +43,8 @@ export function HoldingsTable({ holdings }: { holdings: Holding[] }) {
           const cost = qty * avg
           const pct = cost > 0 ? ((value - cost) / cost) * 100 : 0
           const weight = totalValue > 0 ? (value / totalValue) * 100 : 0
-          const exchange = h.ticker.endsWith('.KS') ? '코스피'
-            : h.ticker.endsWith('.KQ') ? '코스닥'
-            : /^\d{6}$/.test(h.ticker) ? '국내'
-            : h.ticker.includes('.') ? h.ticker.split('.').pop()
-            : '해외'
-          const isKorean = h.ticker.endsWith('.KS') || h.ticker.endsWith('.KQ') || /^\d{6}$/.test(h.ticker)
+          const exchange = getExchangeLabel(h.ticker)
+          const isKorean = isDomestic(h.ticker)
           return (
             <TableRow key={h.id}>
               <TableCell>
