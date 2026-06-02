@@ -562,17 +562,20 @@ export default function BudgetPage() {
               ))}
             </div>
 
-            {/* 금액 + 설명 + 날짜 */}
-            <div className="flex gap-2">
+            {/* 1행: 금액 + 메모 */}
+            <div className="flex gap-2 mb-2">
               <Input type="number" placeholder="금액 (원)" value={amount}
-                onChange={e => setAmount(e.target.value)} className="flex-1 text-base" required />
+                onChange={e => setAmount(e.target.value)} className="w-36 text-base" required />
               <Input placeholder="메모 (선택)" value={description}
                 onChange={e => setDescription(e.target.value)} className="flex-1" />
+            </div>
+            {/* 2행: 날짜 + 추가 버튼 */}
+            <div className="flex gap-2">
               <Input type="date" value={date} onChange={e => setDate(e.target.value)}
-                className="w-36" required />
+                className="flex-1" required />
               <Button type="submit" disabled={saving || !amount}
-                className={type === 'income' ? 'bg-green-500 hover:bg-green-600'
-                  : isFixed ? 'bg-orange-500 hover:bg-orange-600' : 'bg-red-500 hover:bg-red-600'}>
+                className={`px-6 ${type === 'income' ? 'bg-green-500 hover:bg-green-600'
+                  : isFixed ? 'bg-orange-500 hover:bg-orange-600' : 'bg-red-500 hover:bg-red-600'}`}>
                 {saving ? '...' : '추가'}
               </Button>
             </div>
