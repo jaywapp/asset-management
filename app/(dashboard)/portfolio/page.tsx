@@ -328,13 +328,13 @@ export default function PortfolioPage() {
         </CardContent></Card>
         <Card><CardContent className="pt-4">
           <p className="text-xs text-gray-500">총 수익금</p>
-          <p className={`text-xl font-bold ${totalGainLoss >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+          <p className={`text-xl font-bold ${totalGainLoss > 0 ? 'text-red-600' : totalGainLoss < 0 ? 'text-blue-600' : 'text-gray-700'}`}>
             {totalGainLoss >= 0 ? '+' : ''}{fmt(totalGainLoss)}
           </p>
         </CardContent></Card>
         <Card><CardContent className="pt-4">
           <p className="text-xs text-gray-500">총 수익률</p>
-          <p className={`text-xl font-bold ${totalGainLossPct >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+          <p className={`text-xl font-bold ${totalGainLossPct > 0 ? 'text-red-600' : totalGainLossPct < 0 ? 'text-blue-600' : 'text-gray-700'}`}>
             {totalGainLossPct >= 0 ? '+' : ''}{totalGainLossPct.toFixed(2)}%
           </p>
         </CardContent></Card>
