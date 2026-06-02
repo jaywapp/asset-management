@@ -15,10 +15,6 @@ interface Props {
   placeholder?: string
 }
 
-const TYPE_BADGES: Record<string, string> = {
-  EQUITY: '주식', ETF: 'ETF', MUTUALFUND: '펀드', INDEX: '지수',
-}
-
 export function StockSearch({ onSelect, placeholder = '종목명 또는 티커 검색...' }: Props) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<StockResult[]>([])
@@ -94,9 +90,9 @@ export function StockSearch({ onSelect, placeholder = '종목명 또는 티커 �
                 {stock.exchange && (
                   <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">{stock.exchange}</span>
                 )}
-                {stock.type && TYPE_BADGES[stock.type] && (
+                {stock.type && (
                   <span className="text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-600">
-                    {TYPE_BADGES[stock.type]}
+                    {stock.type}
                   </span>
                 )}
               </div>
