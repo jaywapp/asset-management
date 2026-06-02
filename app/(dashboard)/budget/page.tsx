@@ -124,9 +124,7 @@ export default function BudgetPage() {
   }
 
   useEffect(() => {
-    load()
-    loadCarryover()
-    checkRecurring()
+    Promise.all([load(), loadCarryover(), checkRecurring()])
   }, [year, month])
 
   useEffect(() => {

@@ -10,6 +10,8 @@ import { AllocationChart } from '@/components/portfolio/AllocationChart'
 import { StockSearch } from '@/components/portfolio/StockSearch'
 import { ImageAnalyzer } from '@/components/ui/image-analyzer'
 import { Plus, X, Camera, RefreshCw } from 'lucide-react'
+import { isDomestic, getGainColor } from '@/lib/stock-utils'
+import { formatKRW } from '@/lib/utils'
 
 interface Holding {
   id: string; ticker: string; name: string
@@ -113,15 +115,13 @@ export default function PortfolioPage() {
 
   const allocationData = Object.entries(
     holdings.reduce((acc: Record<string, number>, h) => {
-      const isDomestic = h.ticker.endsWith('.KS') || h.ticker.endsWith('.KQ') || /^\d{6}$/.test(h.ticker)
-      const key = isDomestic ? '국내주식' : '해외주식'
+      const key = isDomestic(h.ticker) ? '국내주식' : '해외주식'
       acc[key] = (acc[key] ?? 0) + Number(h.quantity) * Number(h.currentPrice)
       return acc
     }, {})
   ).map(([name, value]) => ({ name, value }))
 
-  const fmt = (n: number) =>
-    new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW', maximumFractionDigits: 0 }).format(n)
+  const fmt = formatKRW
 
   return (
     <div className="space-y-6">
@@ -328,13 +328,13 @@ export default function PortfolioPage() {
         </CardContent></Card>
         <Card><CardContent className="pt-4">
           <p className="text-xs text-gray-500">총 수익금</p>
-          <p className={`text-xl font-bold ${totalGainLoss > 0 ? 'text-red-600' : totalGainLoss < 0 ? 'text-blue-600' : 'text-gray-700'}`}>
+          <p className={`text-xl font-bold ${getGainColor(totalGainLoss)}`}>
             {totalGainLoss >= 0 ? '+' : ''}{fmt(totalGainLoss)}
           </p>
         </CardContent></Card>
         <Card><CardContent className="pt-4">
           <p className="text-xs text-gray-500">총 수익률</p>
-          <p className={`text-xl font-bold ${totalGainLossPct > 0 ? 'text-red-600' : totalGainLossPct < 0 ? 'text-blue-600' : 'text-gray-700'}`}>
+          <p className={`text-xl font-bold ${getGainColor(totalGainLossPct)}`}>
             {totalGainLossPct >= 0 ? '+' : ''}{totalGainLossPct.toFixed(2)}%
           </p>
         </CardContent></Card>
