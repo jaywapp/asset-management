@@ -3,16 +3,7 @@ import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { holdings, accounts } from '@/lib/db/schema'
 import { eq, inArray } from 'drizzle-orm'
-
-// 국내 종목 여부: .KS / .KQ 접미사
-function isDomestic(ticker: string) {
-  return ticker.endsWith('.KS') || ticker.endsWith('.KQ')
-}
-
-// 국내 종목코드 추출: "005930.KS" → "005930"
-function toNaverCode(ticker: string) {
-  return ticker.replace(/\.(KS|KQ)$/, '')
-}
+import { isDomestic, toNaverCode } from '@/lib/stock-utils'
 
 async function fetchNaverPrice(code: string): Promise<number | null> {
   try {

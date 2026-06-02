@@ -1,3 +1,4 @@
+import { CACHE_SHORT, CACHE_LONG } from '@/lib/utils'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
@@ -29,6 +30,6 @@ export async function GET(req: Request) {
   const carryover = totalIncome - totalExpenses
 
   return NextResponse.json({ carryover }, {
-    headers: { 'Cache-Control': 'private, max-age=30, stale-while-revalidate=60' },
+    headers: CACHE_LONG,
   })
 }
