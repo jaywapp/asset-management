@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { CashFlowChart } from '@/components/budget/CashFlowChart'
-import { TrendingUp, TrendingDown, Trash2, Camera } from 'lucide-react'
+import { TrendingUp, TrendingDown, Trash2, Camera, Pin } from 'lucide-react'
 import { ImageAnalyzer } from '@/components/ui/image-analyzer'
 
 const fmt = (n: number) =>
@@ -28,6 +28,7 @@ interface Entry {
   amount: string
   description: string | null
   date: string
+  isFixed?: boolean
 }
 
 export default function BudgetPage() {
@@ -36,8 +37,8 @@ export default function BudgetPage() {
   const [month, setMonth] = useState(now.getMonth() + 1)
   const [entries, setEntries] = useState<Entry[]>([])
 
-  // 빠른 입력 폼 상태
   const [type, setType] = useState<EntryType>('expense')
+  const [isFixed, setIsFixed] = useState(false)
   const [category, setCategory] = useState('food')
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
@@ -45,6 +46,9 @@ export default function BudgetPage() {
   const [saving, setSaving] = useState(false)
   const [showImageAnalyzer, setShowImageAnalyzer] = useState(false)
   const [pendingEntries, setPendingEntries] = useState<any[]>([])
+
+  // 지출 필터: all | fixed | variable
+  const [expenseFilter, setExpenseFilter] = useState<'all' | 'fixed' | 'variable'>('all')
 
   async function load() {
     const [inc, exp] = await Promise.all([
@@ -60,9 +64,9 @@ export default function BudgetPage() {
 
   useEffect(() => { load() }, [year, month])
 
-  // 타입 바뀔 때 카테고리 초기값 리셋
   useEffect(() => {
     setCategory(type === 'income' ? 'salary' : 'food')
+    if (type === 'income') setIsFixed(false)
   }, [type])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -72,7 +76,7 @@ export default function BudgetPage() {
     const endpoint = type === 'income' ? '/api/income' : '/api/expenses'
     const body = type === 'income'
       ? { category, amount, description, date }
-      : { category, amount, description, date, isFixed: false }
+      : { category, amount, description, date, isFixed }
     await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -118,9 +122,20 @@ export default function BudgetPage() {
   }
 
   const totalIncome = entries.filter(e => e.type === 'income').reduce((s, e) => s + Number(e.amount), 0)
-  const totalExpenses = entries.filter(e => e.type === 'expense').reduce((s, e) => s + Number(e.amount), 0)
+  const allExpenses = entries.filter(e => e.type === 'expense')
+  const fixedExpenses = allExpenses.filter(e => e.isFixed)
+  const variableExpenses = allExpenses.filter(e => !e.isFixed)
+  const totalExpenses = allExpenses.reduce((s, e) => s + Number(e.amount), 0)
+  const totalFixed = fixedExpenses.reduce((s, e) => s + Number(e.amount), 0)
+  const totalVariable = variableExpenses.reduce((s, e) => s + Number(e.amount), 0)
   const savings = totalIncome - totalExpenses
   const cats = type === 'income' ? INCOME_CATS : EXPENSE_CATS
+
+  const filteredEntries = entries.filter(e => {
+    if (expenseFilter === 'fixed') return e.type === 'expense' && e.isFixed
+    if (expenseFilter === 'variable') return e.type === 'expense' && !e.isFixed
+    return true
+  })
 
   return (
     <div className="space-y-5">
@@ -144,7 +159,7 @@ export default function BudgetPage() {
         </div>
       </div>
 
-      {/* 이미지 분석 영역 */}
+      {/* 이미지 분석 */}
       {showImageAnalyzer && (
         <Card className="border-purple-200">
           <CardHeader className="pb-2">
@@ -193,21 +208,35 @@ export default function BudgetPage() {
       )}
 
       {/* 요약 카드 */}
-      <div className="grid grid-cols-3 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card className="border-green-100">
           <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-1">
+            <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
               <TrendingUp size={12} className="text-green-500" /> 수입
             </div>
             <p className="text-xl font-bold text-green-600">{fmt(totalIncome)}</p>
           </CardContent>
         </Card>
+        <Card className="border-orange-100">
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
+              <Pin size={12} className="text-orange-500" /> 고정지출
+            </div>
+            <p className="text-xl font-bold text-orange-500">{fmt(totalFixed)}</p>
+            {totalExpenses > 0 && (
+              <p className="text-xs text-gray-400 mt-0.5">{((totalFixed / totalExpenses) * 100).toFixed(0)}%</p>
+            )}
+          </CardContent>
+        </Card>
         <Card className="border-red-100">
           <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-1">
-              <TrendingDown size={12} className="text-red-500" /> 지출
+            <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
+              <TrendingDown size={12} className="text-red-500" /> 변동지출
             </div>
-            <p className="text-xl font-bold text-red-500">{fmt(totalExpenses)}</p>
+            <p className="text-xl font-bold text-red-500">{fmt(totalVariable)}</p>
+            {totalExpenses > 0 && (
+              <p className="text-xs text-gray-400 mt-0.5">{((totalVariable / totalExpenses) * 100).toFixed(0)}%</p>
+            )}
           </CardContent>
         </Card>
         <Card className={savings >= 0 ? 'border-blue-100' : 'border-red-100'}>
@@ -218,7 +247,7 @@ export default function BudgetPage() {
             </p>
             {totalIncome > 0 && (
               <p className="text-xs text-gray-400 mt-0.5">
-                저축률 {((savings / totalIncome) * 100).toFixed(1)}%
+                {((savings / totalIncome) * 100).toFixed(1)}%
               </p>
             )}
           </CardContent>
@@ -231,34 +260,46 @@ export default function BudgetPage() {
           <form onSubmit={handleSubmit}>
             {/* 수입/지출 토글 */}
             <div className="flex gap-2 mb-3">
-              <button type="button"
-                onClick={() => setType('expense')}
+              <button type="button" onClick={() => setType('expense')}
                 className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${
-                  type === 'expense'
-                    ? 'bg-red-500 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  type === 'expense' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}>
                 지출
               </button>
-              <button type="button"
-                onClick={() => setType('income')}
+              <button type="button" onClick={() => setType('income')}
                 className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${
-                  type === 'income'
-                    ? 'bg-green-500 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  type === 'income' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}>
                 수입
               </button>
             </div>
 
+            {/* 고정/변동 토글 (지출일 때만) */}
+            {type === 'expense' && (
+              <div className="flex gap-2 mb-3">
+                <button type="button" onClick={() => setIsFixed(false)}
+                  className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    !isFixed ? 'bg-red-100 text-red-700 border border-red-300' : 'bg-gray-50 text-gray-400 border border-gray-200'
+                  }`}>
+                  변동지출
+                </button>
+                <button type="button" onClick={() => setIsFixed(true)}
+                  className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center justify-center gap-1 ${
+                    isFixed ? 'bg-orange-100 text-orange-700 border border-orange-300' : 'bg-gray-50 text-gray-400 border border-gray-200'
+                  }`}>
+                  <Pin size={11} />고정지출
+                </button>
+              </div>
+            )}
+
             {/* 카테고리 버튼 */}
             <div className="flex flex-wrap gap-1.5 mb-3">
               {cats.map(c => (
-                <button key={c} type="button"
-                  onClick={() => setCategory(c)}
+                <button key={c} type="button" onClick={() => setCategory(c)}
                   className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
                     category === c
-                      ? type === 'income' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+                      ? type === 'income' ? 'bg-green-500 text-white'
+                        : isFixed ? 'bg-orange-500 text-white' : 'bg-red-500 text-white'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}>
                   {CAT_LABELS[c]}
@@ -268,29 +309,15 @@ export default function BudgetPage() {
 
             {/* 금액 + 설명 + 날짜 */}
             <div className="flex gap-2">
-              <Input
-                type="number"
-                placeholder="금액 (원)"
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                className="flex-1 text-base"
-                required
-              />
-              <Input
-                placeholder="메모 (선택)"
-                value={description}
-                onChange={e => setDescription(e.target.value)}
-                className="flex-1"
-              />
-              <Input
-                type="date"
-                value={date}
-                onChange={e => setDate(e.target.value)}
-                className="w-36"
-                required
-              />
+              <Input type="number" placeholder="금액 (원)" value={amount}
+                onChange={e => setAmount(e.target.value)} className="flex-1 text-base" required />
+              <Input placeholder="메모 (선택)" value={description}
+                onChange={e => setDescription(e.target.value)} className="flex-1" />
+              <Input type="date" value={date} onChange={e => setDate(e.target.value)}
+                className="w-36" required />
               <Button type="submit" disabled={saving || !amount}
-                className={type === 'income' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}>
+                className={type === 'income' ? 'bg-green-500 hover:bg-green-600'
+                  : isFixed ? 'bg-orange-500 hover:bg-orange-600' : 'bg-red-500 hover:bg-red-600'}>
                 {saving ? '...' : '추가'}
               </Button>
             </div>
@@ -301,48 +328,60 @@ export default function BudgetPage() {
       {/* 내역 목록 */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">
-            {month}월 내역 ({entries.length}건)
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">{month}월 내역 ({filteredEntries.length}건)</CardTitle>
+            <div className="flex gap-1">
+              {(['all', 'fixed', 'variable'] as const).map(f => (
+                <button key={f} onClick={() => setExpenseFilter(f)}
+                  className={`text-xs px-2.5 py-1 rounded-full transition-colors ${
+                    expenseFilter === f
+                      ? 'bg-gray-800 text-white'
+                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  }`}>
+                  {f === 'all' ? '전체' : f === 'fixed' ? '고정' : '변동'}
+                </button>
+              ))}
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="px-4 pb-4">
-          {entries.length === 0 ? (
-            <p className="text-sm text-gray-400 py-6 text-center">내역이 없습니다. 위에서 추가하세요.</p>
+          {filteredEntries.length === 0 ? (
+            <p className="text-sm text-gray-400 py-6 text-center">내역이 없습니다.</p>
           ) : (
             <div className="space-y-0">
-              {entries.map((entry, i) => {
+              {filteredEntries.map((entry, i) => {
                 const isIncome = entry.type === 'income'
-                const prevDate = i > 0 ? new Date(entries[i - 1].date).toLocaleDateString('ko-KR') : null
+                const prevDate = i > 0 ? new Date(filteredEntries[i - 1].date).toLocaleDateString('ko-KR') : null
                 const currDate = new Date(entry.date).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })
                 const showDateDivider = prevDate !== currDate
 
                 return (
                   <div key={entry.id}>
                     {showDateDivider && (
-                      <div className="text-xs text-gray-400 font-medium pt-3 pb-1 border-b">
-                        {currDate}
-                      </div>
+                      <div className="text-xs text-gray-400 font-medium pt-3 pb-1 border-b">{currDate}</div>
                     )}
                     <div className="flex items-center justify-between py-2.5 group">
                       <div className="flex items-center gap-3">
-                        <span className={`w-1.5 h-1.5 rounded-full ${isIncome ? 'bg-green-500' : 'bg-red-500'}`} />
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className="text-xs px-1.5 py-0">
-                              {CAT_LABELS[entry.category] ?? entry.category}
-                            </Badge>
-                            {entry.description && (
-                              <span className="text-sm text-gray-600">{entry.description}</span>
-                            )}
-                          </div>
+                        <span className={`w-1.5 h-1.5 rounded-full ${isIncome ? 'bg-green-500' : entry.isFixed ? 'bg-orange-400' : 'bg-red-500'}`} />
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="secondary" className="text-xs px-1.5 py-0">
+                            {CAT_LABELS[entry.category] ?? entry.category}
+                          </Badge>
+                          {entry.isFixed && (
+                            <span className="inline-flex items-center gap-0.5 text-xs text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded-full border border-orange-200">
+                              <Pin size={10} />고정
+                            </span>
+                          )}
+                          {entry.description && (
+                            <span className="text-sm text-gray-600">{entry.description}</span>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`font-semibold ${isIncome ? 'text-green-600' : 'text-red-500'}`}>
+                        <span className={`font-semibold ${isIncome ? 'text-green-600' : entry.isFixed ? 'text-orange-500' : 'text-red-500'}`}>
                           {isIncome ? '+' : '-'}{fmt(Number(entry.amount))}
                         </span>
-                        <button
-                          onClick={() => handleDelete(entry)}
+                        <button onClick={() => handleDelete(entry)}
                           className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-opacity">
                           <Trash2 size={14} />
                         </button>
