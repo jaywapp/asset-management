@@ -7,8 +7,9 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { HoldingsTable } from '@/components/portfolio/HoldingsTable'
 import { AllocationChart } from '@/components/portfolio/AllocationChart'
+import { StockSearch } from '@/components/portfolio/StockSearch'
 import { ImageAnalyzer } from '@/components/ui/image-analyzer'
-import { Plus, X, Camera } from 'lucide-react'
+import { Plus, X, Camera, RefreshCw } from 'lucide-react'
 
 interface Holding {
   id: string; ticker: string; name: string
@@ -27,6 +28,8 @@ export default function PortfolioPage() {
   const [pendingHoldings, setPendingHoldings] = useState<Record<string, unknown>[]>([])
   const [pendingAccountId, setPendingAccountId] = useState('')
   const [saving, setSaving] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshMsg, setRefreshMsg] = useState('')
 
   const [accountForm, setAccountForm] = useState({ name: '', type: 'stock', institution: '' })
   const [holdingForm, setHoldingForm] = useState({
@@ -55,11 +58,25 @@ export default function PortfolioPage() {
     await load()
   }
 
+  async function refreshPrices() {
+    setRefreshing(true)
+    setRefreshMsg('')
+    const res = await fetch('/api/portfolio/refresh-prices', { method: 'POST' })
+    const data = await res.json()
+    setRefreshMsg(`${data.updated}/${data.total}개 종목 시세 갱신 완료`)
+    await load()
+    setRefreshing(false)
+    setTimeout(() => setRefreshMsg(''), 4000)
+  }
+
   async function addHolding(e: React.FormEvent) {
     e.preventDefault()
     await fetch('/api/portfolio/holdings', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(holdingForm),
+      body: JSON.stringify({
+        ...holdingForm,
+        currentPrice: holdingForm.currentPrice || holdingForm.avgPrice || '0',
+      }),
     })
     setHoldingForm({ accountId: '', ticker: '', name: '', quantity: '', avgPrice: '', currentPrice: '' })
     setShowForm(null)
@@ -110,6 +127,10 @@ export default function PortfolioPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">포트폴리오</h1>
         <div className="flex gap-2 flex-wrap justify-end">
+          <Button variant="outline" size="sm" onClick={refreshPrices} disabled={refreshing}>
+            <RefreshCw size={14} className={`mr-1 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? '갱신 중...' : '시세 갱신'}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setShowForm(showForm === 'image' ? null : 'image')}>
             <Camera size={14} className="mr-1" />이미지 입력
           </Button>
@@ -121,6 +142,13 @@ export default function PortfolioPage() {
           </Button>
         </div>
       </div>
+
+      {/* 시세 갱신 메시지 */}
+      {refreshMsg && (
+        <p className="text-sm text-green-600 bg-green-50 border border-green-200 rounded-md px-3 py-2">
+          ✓ {refreshMsg}
+        </p>
+      )}
 
       {/* 이미지 분석 */}
       {showForm === 'image' && (
@@ -255,28 +283,36 @@ export default function PortfolioPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>티커</Label>
-                  <Input value={holdingForm.ticker} onChange={e => setHoldingForm(p => ({ ...p, ticker: e.target.value }))}
-                    placeholder="005930" required />
-                </div>
-                <div><Label>종목명</Label>
-                  <Input value={holdingForm.name} onChange={e => setHoldingForm(p => ({ ...p, name: e.target.value }))}
-                    placeholder="삼성전자" required />
+                <div className="col-span-2 sm:col-span-3">
+                  <Label>종목 검색</Label>
+                  <StockSearch
+                    onSelect={s => setHoldingForm(p => ({ ...p, ticker: s.symbol, name: s.name }))}
+                    placeholder="삼성전자, AAPL, 069500 등 검색..."
+                  />
+                  {holdingForm.ticker && (
+                    <p className="text-xs text-blue-600 mt-1">
+                      선택됨: <strong>{holdingForm.name}</strong> ({holdingForm.ticker})
+                    </p>
+                  )}
                 </div>
                 <div><Label>수량</Label>
                   <Input type="number" step="any" value={holdingForm.quantity}
                     onChange={e => setHoldingForm(p => ({ ...p, quantity: e.target.value }))} required />
                 </div>
-                <div><Label>평균단가</Label>
+                <div><Label>평균단가 (원)</Label>
                   <Input type="number" value={holdingForm.avgPrice}
                     onChange={e => setHoldingForm(p => ({ ...p, avgPrice: e.target.value }))} required />
                 </div>
-                <div><Label>현재가</Label>
+                <div><Label>현재가 (원)</Label>
                   <Input type="number" value={holdingForm.currentPrice}
-                    onChange={e => setHoldingForm(p => ({ ...p, currentPrice: e.target.value }))} required />
+                    onChange={e => setHoldingForm(p => ({ ...p, currentPrice: e.target.value }))}
+                    placeholder="저장 후 시세 갱신 가능" />
                 </div>
                 <div className="col-span-2 sm:col-span-3">
-                  <Button type="submit" size="sm" disabled={!holdingForm.accountId}>추가</Button>
+                  <Button type="submit" size="sm"
+                    disabled={!holdingForm.accountId || !holdingForm.ticker}>
+                    추가
+                  </Button>
                 </div>
               </form>
             )}
