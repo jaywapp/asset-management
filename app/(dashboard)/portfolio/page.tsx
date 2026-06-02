@@ -7,12 +7,12 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { HoldingsTable } from '@/components/portfolio/HoldingsTable'
 import { AllocationChart } from '@/components/portfolio/AllocationChart'
-import { Plus, X } from 'lucide-react'
+import { ImageAnalyzer } from '@/components/ui/image-analyzer'
+import { Plus, X, Camera } from 'lucide-react'
 
 interface Holding {
   id: string; ticker: string; name: string
-  quantity: string; avgPrice: string; currentPrice: string
-  accountId: string
+  quantity: string; avgPrice: string; currentPrice: string; accountId: string
 }
 interface Account { id: string; name: string; type: string }
 
@@ -23,7 +23,10 @@ const ACCOUNT_TYPES: Record<string, string> = {
 export default function PortfolioPage() {
   const [holdings, setHoldings] = useState<Holding[]>([])
   const [accounts, setAccounts] = useState<Account[]>([])
-  const [showForm, setShowForm] = useState<'holding' | 'account' | null>(null)
+  const [showForm, setShowForm] = useState<'holding' | 'account' | 'image' | null>(null)
+  const [pendingHoldings, setPendingHoldings] = useState<Record<string, unknown>[]>([])
+  const [pendingAccountId, setPendingAccountId] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const [accountForm, setAccountForm] = useState({ name: '', type: 'stock', institution: '' })
   const [holdingForm, setHoldingForm] = useState({
@@ -63,6 +66,29 @@ export default function PortfolioPage() {
     await load()
   }
 
+  async function savePendingHoldings() {
+    if (!pendingAccountId) return
+    setSaving(true)
+    for (const h of pendingHoldings) {
+      await fetch('/api/portfolio/holdings', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId: pendingAccountId,
+          ticker: String(h.ticker ?? h.name ?? ''),
+          name: String(h.name ?? ''),
+          quantity: String(h.quantity ?? '0'),
+          avgPrice: String(h.avgPrice ?? h.currentPrice ?? '0'),
+          currentPrice: String(h.currentPrice ?? '0'),
+        }),
+      })
+    }
+    setPendingHoldings([])
+    setPendingAccountId('')
+    setShowForm(null)
+    await load()
+    setSaving(false)
+  }
+
   const totalValue = holdings.reduce((s, h) => s + Number(h.quantity) * Number(h.currentPrice), 0)
   const totalCost = holdings.reduce((s, h) => s + Number(h.quantity) * Number(h.avgPrice), 0)
   const totalGainLoss = totalValue - totalCost
@@ -83,7 +109,10 @@ export default function PortfolioPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">포트폴리오</h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap justify-end">
+          <Button variant="outline" size="sm" onClick={() => setShowForm(showForm === 'image' ? null : 'image')}>
+            <Camera size={14} className="mr-1" />이미지 입력
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setShowForm(showForm === 'account' ? null : 'account')}>
             <Plus size={14} className="mr-1" />계좌 추가
           </Button>
@@ -92,6 +121,84 @@ export default function PortfolioPage() {
           </Button>
         </div>
       </div>
+
+      {/* 이미지 분석 */}
+      {showForm === 'image' && (
+        <Card className="border-purple-200">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Camera size={14} className="text-purple-500" />AI 이미지 분석
+              </CardTitle>
+              <button onClick={() => setShowForm(null)}><X size={16} className="text-gray-400" /></button>
+            </div>
+            <p className="text-xs text-gray-400">주식 보유 내역 화면, 증권 계좌 스크린샷을 업로드하세요.</p>
+          </CardHeader>
+          <CardContent>
+            <ImageAnalyzer
+              context="portfolio"
+              onResult={(entries) => { setPendingHoldings(entries); setShowForm(null) }}
+              label="보유 종목 화면 업로드"
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* AI 분석 결과 확인 */}
+      {pendingHoldings.length > 0 && (
+        <Card className="border-green-200 bg-green-50/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-green-700">
+              AI 분석 결과 ({pendingHoldings.length}종목) — 저장할 계좌를 선택하세요
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="text-xs text-gray-400 border-b">
+                  <th className="text-left pb-1">종목</th>
+                  <th className="text-right pb-1">수량</th>
+                  <th className="text-right pb-1">평균단가</th>
+                  <th className="text-right pb-1">현재가</th>
+                </tr></thead>
+                <tbody>{pendingHoldings.map((h, i) => (
+                  <tr key={i} className="border-b last:border-0">
+                    <td className="py-1.5">
+                      <div className="font-medium">{String(h.ticker ?? '')}</div>
+                      <div className="text-xs text-gray-400">{String(h.name ?? '')}</div>
+                    </td>
+                    <td className="text-right">{String(h.quantity ?? 0)}</td>
+                    <td className="text-right">{fmt(Number(h.avgPrice ?? 0))}</td>
+                    <td className="text-right">{fmt(Number(h.currentPrice ?? 0))}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+            <div className="flex gap-3 items-end">
+              <div className="flex-1">
+                <Label className="text-xs">저장할 계좌</Label>
+                {accounts.length === 0
+                  ? <p className="text-xs text-gray-400 mt-1">먼저 계좌를 추가해주세요.</p>
+                  : <Select value={pendingAccountId} onValueChange={setPendingAccountId}>
+                      <SelectTrigger><SelectValue placeholder="계좌 선택" /></SelectTrigger>
+                      <SelectContent>
+                        {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                }
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={savePendingHoldings}
+                  disabled={!pendingAccountId || saving}
+                  className="bg-green-600 hover:bg-green-700">
+                  {saving ? '저장 중...' : '저장'}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setPendingHoldings([])}>취소</Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 계좌 추가 폼 */}
       {showForm === 'account' && (
@@ -140,11 +247,11 @@ export default function PortfolioPage() {
               <p className="text-sm text-gray-400">먼저 계좌를 추가해주세요.</p>
             ) : (
               <form onSubmit={addHolding} className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <div className="col-span-2 sm:col-span-3"><Label>계좌 선택</Label>
+                <div className="col-span-2 sm:col-span-3"><Label>계좌</Label>
                   <Select value={holdingForm.accountId} onValueChange={v => setHoldingForm(p => ({ ...p, accountId: v }))}>
                     <SelectTrigger><SelectValue placeholder="계좌 선택" /></SelectTrigger>
                     <SelectContent>
-                      {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name} ({ACCOUNT_TYPES[a.type]})</SelectItem>)}
+                      {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -160,11 +267,11 @@ export default function PortfolioPage() {
                   <Input type="number" step="any" value={holdingForm.quantity}
                     onChange={e => setHoldingForm(p => ({ ...p, quantity: e.target.value }))} required />
                 </div>
-                <div><Label>평균단가 (원)</Label>
+                <div><Label>평균단가</Label>
                   <Input type="number" value={holdingForm.avgPrice}
                     onChange={e => setHoldingForm(p => ({ ...p, avgPrice: e.target.value }))} required />
                 </div>
-                <div><Label>현재가 (원)</Label>
+                <div><Label>현재가</Label>
                   <Input type="number" value={holdingForm.currentPrice}
                     onChange={e => setHoldingForm(p => ({ ...p, currentPrice: e.target.value }))} required />
                 </div>
