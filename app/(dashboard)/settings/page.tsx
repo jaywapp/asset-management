@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Plus, Building2, Bot, RotateCcw } from 'lucide-react'
+import { Plus, Building2, Bot, RotateCcw, User } from 'lucide-react'
 
 const AGENT_LABELS: Record<string, string> = {
   cfo: 'CFO (총괄)',
@@ -25,6 +25,13 @@ export default function SettingsPage() {
   const [editingAgent, setEditingAgent] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
   const [savingPrompt, setSavingPrompt] = useState(false)
+
+  // 계정 설정
+  const [accountInfo, setAccountInfo] = useState({ name: '', email: '', role: '' })
+  const [nameForm, setNameForm] = useState('')
+  const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' })
+  const [accountMsg, setAccountMsg] = useState('')
+  const [savingAccount, setSavingAccount] = useState(false)
   const [holdingForm, setHoldingForm] = useState({
     accountId: '', ticker: '', name: '', quantity: '', avgPrice: '', currentPrice: '',
   })
@@ -38,12 +45,60 @@ export default function SettingsPage() {
     if (res.ok) setAccounts(await res.json())
   }
 
+  async function loadAccountInfo() {
+    const res = await fetch('/api/settings/account')
+    if (res.ok) {
+      const data = await res.json()
+      setAccountInfo(data)
+      setNameForm(data.name)
+    }
+  }
+
+  async function saveName(e: React.FormEvent) {
+    e.preventDefault()
+    setSavingAccount(true)
+    setAccountMsg('')
+    const res = await fetch('/api/settings/account', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: nameForm }),
+    })
+    if (res.ok) {
+      setAccountMsg('이름이 변경되었습니다. 다시 로그인하면 반영됩니다.')
+      await loadAccountInfo()
+    }
+    setSavingAccount(false)
+  }
+
+  async function savePassword(e: React.FormEvent) {
+    e.preventDefault()
+    if (pwForm.next !== pwForm.confirm) {
+      setAccountMsg('새 비밀번호가 일치하지 않습니다')
+      return
+    }
+    setSavingAccount(true)
+    setAccountMsg('')
+    const res = await fetch('/api/settings/account', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword: pwForm.current, newPassword: pwForm.next }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      setAccountMsg('비밀번호가 변경되었습니다.')
+      setPwForm({ current: '', next: '', confirm: '' })
+    } else {
+      setAccountMsg(data.error ?? '오류가 발생했습니다')
+    }
+    setSavingAccount(false)
+  }
+
   async function loadPrompts() {
     const res = await fetch('/api/settings/prompts')
     if (res.ok) setPrompts(await res.json())
   }
 
-  useEffect(() => { loadAccounts(); loadPrompts() }, [])
+  useEffect(() => { loadAccounts(); loadPrompts(); loadAccountInfo() }, [])
 
   async function savePrompt(agentName: string) {
     setSavingPrompt(true)
@@ -105,12 +160,63 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-bold">설정</h1>
 
       <Tabs defaultValue="accounts">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="account">내 계정</TabsTrigger>
           <TabsTrigger value="accounts">계좌 관리</TabsTrigger>
           <TabsTrigger value="holdings">종목 추가</TabsTrigger>
-          <TabsTrigger value="realestate">부동산 추가</TabsTrigger>
+          <TabsTrigger value="realestate">부동산</TabsTrigger>
           <TabsTrigger value="prompts">AI 지침</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="account" className="mt-4 space-y-4">
+          <Card>
+            <CardHeader><CardTitle className="text-base flex items-center gap-2"><User size={16} />내 정보</CardTitle></CardHeader>
+            <CardContent className="space-y-1 text-sm text-gray-500">
+              <p>이메일: <span className="text-gray-900 font-medium">{accountInfo.email}</span></p>
+              <p>역할: <span className="text-gray-900 font-medium">{accountInfo.role === 'husband' ? '남편' : '아내'}</span></p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="text-base">이름 변경</CardTitle></CardHeader>
+            <CardContent>
+              <form onSubmit={saveName} className="space-y-3">
+                <div>
+                  <Label>이름</Label>
+                  <Input value={nameForm} onChange={e => setNameForm(e.target.value)} placeholder="표시될 이름" required />
+                </div>
+                <Button type="submit" size="sm" disabled={savingAccount}>저장</Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="text-base">비밀번호 변경</CardTitle></CardHeader>
+            <CardContent>
+              <form onSubmit={savePassword} className="space-y-3">
+                <div>
+                  <Label>현재 비밀번호</Label>
+                  <Input type="password" value={pwForm.current} onChange={e => setPwForm(p => ({ ...p, current: e.target.value }))} required />
+                </div>
+                <div>
+                  <Label>새 비밀번호</Label>
+                  <Input type="password" value={pwForm.next} onChange={e => setPwForm(p => ({ ...p, next: e.target.value }))} required />
+                </div>
+                <div>
+                  <Label>새 비밀번호 확인</Label>
+                  <Input type="password" value={pwForm.confirm} onChange={e => setPwForm(p => ({ ...p, confirm: e.target.value }))} required />
+                </div>
+                <Button type="submit" size="sm" disabled={savingAccount}>변경</Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          {accountMsg && (
+            <p className={`text-sm ${accountMsg.includes('오류') || accountMsg.includes('않습') ? 'text-red-500' : 'text-green-600'}`}>
+              {accountMsg}
+            </p>
+          )}
+        </TabsContent>
 
         <TabsContent value="accounts" className="mt-4 space-y-4">
           <Card>
