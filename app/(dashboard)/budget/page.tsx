@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { CashFlowChart } from '@/components/budget/CashFlowChart'
-import { TrendingUp, TrendingDown, Trash2, Camera, Pin, Pencil, X, Check, CheckSquare } from 'lucide-react'
+import { TrendingUp, TrendingDown, Trash2, Camera, Pin, Pencil, X, Check, CheckSquare, RefreshCw } from 'lucide-react'
 import { ImageAnalyzer } from '@/components/ui/image-analyzer'
 
 const fmt = (n: number) =>
@@ -29,6 +29,14 @@ interface Entry {
   description: string | null
   date: string
   isFixed?: boolean
+  isRecurring?: boolean
+}
+
+interface RecurringTemplate {
+  id: string
+  category: string
+  amount: string
+  description: string | null
 }
 
 interface EditForm {
@@ -48,6 +56,7 @@ export default function BudgetPage() {
   // 새 항목 입력
   const [type, setType] = useState<EntryType>('expense')
   const [isFixed, setIsFixed] = useState(false)
+  const [isRecurring, setIsRecurring] = useState(false)
   const [category, setCategory] = useState('food')
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
@@ -55,6 +64,10 @@ export default function BudgetPage() {
   const [saving, setSaving] = useState(false)
   const [showImageAnalyzer, setShowImageAnalyzer] = useState(false)
   const [pendingEntries, setPendingEntries] = useState<any[]>([])
+
+  // 반복 고정지출
+  const [pendingRecurring, setPendingRecurring] = useState<RecurringTemplate[]>([])
+  const [recurringApplying, setRecurringApplying] = useState(false)
 
   // 필터
   const [expenseFilter, setExpenseFilter] = useState<'all' | 'fixed' | 'variable'>('all')
@@ -81,12 +94,34 @@ export default function BudgetPage() {
     setEntries(combined)
   }
 
-  useEffect(() => { load() }, [year, month])
+  async function checkRecurring() {
+    // 현재 달 이전이면 반복 배너 안 보여줌
+    const currentMonth = new Date()
+    if (year < currentMonth.getFullYear() ||
+      (year === currentMonth.getFullYear() && month < currentMonth.getMonth() + 1)) {
+      setPendingRecurring([])
+      return
+    }
+    const res = await fetch(`/api/expenses/recurring?year=${year}&month=${month}`)
+    if (res.ok) {
+      const data = await res.json()
+      setPendingRecurring(data)
+    }
+  }
+
+  useEffect(() => {
+    load()
+    checkRecurring()
+  }, [year, month])
 
   useEffect(() => {
     setCategory(type === 'income' ? 'salary' : 'food')
-    if (type === 'income') setIsFixed(false)
+    if (type === 'income') { setIsFixed(false); setIsRecurring(false) }
   }, [type])
+
+  useEffect(() => {
+    if (!isFixed) setIsRecurring(false)
+  }, [isFixed])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -95,7 +130,7 @@ export default function BudgetPage() {
     const endpoint = type === 'income' ? '/api/income' : '/api/expenses'
     const body = type === 'income'
       ? { category, amount, description, date }
-      : { category, amount, description, date, isFixed }
+      : { category, amount, description, date, isFixed, isRecurring: isFixed && isRecurring }
     await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -105,7 +140,27 @@ export default function BudgetPage() {
     setDescription('')
     setDate(now.toISOString().split('T')[0])
     await load()
+    await checkRecurring()
     setSaving(false)
+  }
+
+  async function applyRecurring() {
+    setRecurringApplying(true)
+    await fetch('/api/expenses/recurring', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        year, month,
+        items: pendingRecurring.map(r => ({
+          category: r.category,
+          amount: r.amount,
+          description: r.description,
+        })),
+      }),
+    })
+    setPendingRecurring([])
+    await load()
+    setRecurringApplying(false)
   }
 
   async function handleImageResult(entries: Record<string, unknown>[]) {
@@ -140,7 +195,6 @@ export default function BudgetPage() {
     await load()
   }
 
-  // 개별 편집 시작
   function startEdit(entry: Entry) {
     setEditingId(entry.id)
     setEditForm({
@@ -152,7 +206,6 @@ export default function BudgetPage() {
     })
   }
 
-  // 개별 편집 저장
   async function saveEdit(entry: Entry) {
     if (!editForm.amount || Number(editForm.amount) <= 0) return
     const endpoint = entry.type === 'income' ? `/api/income/${entry.id}` : `/api/expenses/${entry.id}`
@@ -168,7 +221,6 @@ export default function BudgetPage() {
     await load()
   }
 
-  // 일괄 체크박스 토글
   function toggleSelect(id: string) {
     setSelectedIds(prev => {
       const next = new Set(prev)
@@ -185,7 +237,6 @@ export default function BudgetPage() {
     }
   }
 
-  // 일괄 카테고리 변경
   async function bulkChangeCategory() {
     if (!bulkCategory || selectedIds.size === 0) return
     setBulkSaving(true)
@@ -205,7 +256,6 @@ export default function BudgetPage() {
     setBulkSaving(false)
   }
 
-  // 일괄 고정↔변동 전환
   async function bulkToggleFixed(toFixed: boolean) {
     if (selectedIds.size === 0) return
     setBulkSaving(true)
@@ -223,7 +273,6 @@ export default function BudgetPage() {
     setBulkSaving(false)
   }
 
-  // 일괄 삭제
   async function bulkDelete() {
     if (selectedIds.size === 0) return
     if (!confirm(`선택한 ${selectedIds.size}건을 삭제할까요?`)) return
@@ -255,7 +304,6 @@ export default function BudgetPage() {
     return true
   })
 
-  // 일괄 편집 가능한 카테고리 (선택된 항목들의 타입에 따라)
   const selectedEntries = entries.filter(e => selectedIds.has(e.id))
   const hasOnlyExpenses = selectedEntries.every(e => e.type === 'expense')
   const hasOnlyIncome = selectedEntries.every(e => e.type === 'income')
@@ -282,6 +330,44 @@ export default function BudgetPage() {
           </select>
         </div>
       </div>
+
+      {/* 반복 고정지출 배너 */}
+      {pendingRecurring.length > 0 && (
+        <Card className="border-orange-200 bg-orange-50/40">
+          <CardContent className="py-3 px-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-2">
+                <RefreshCw size={14} className="text-orange-500 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-orange-700">
+                    이번 달 고정지출 {pendingRecurring.length}건이 아직 적용되지 않았습니다
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    {pendingRecurring.map((r, i) => (
+                      <span key={i} className="text-xs bg-white border border-orange-200 text-orange-600 px-2 py-0.5 rounded-full">
+                        {CAT_LABELS[r.category] ?? r.category}
+                        {r.description ? ` · ${r.description}` : ''}
+                        {' '}
+                        <span className="font-medium">{fmt(Number(r.amount))}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <Button size="sm" onClick={applyRecurring} disabled={recurringApplying}
+                  className="bg-orange-500 hover:bg-orange-600 text-xs h-7 px-3">
+                  {recurringApplying ? '적용 중...' : '이번 달 적용'}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setPendingRecurring([])}
+                  className="text-xs h-7 px-2 text-gray-400">
+                  닫기
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 이미지 분석 */}
       {showImageAnalyzer && (
@@ -398,9 +484,9 @@ export default function BudgetPage() {
               </button>
             </div>
 
-            {/* 고정/변동 토글 (지출일 때만) */}
+            {/* 고정/변동 토글 + 반복 체크박스 (지출일 때만) */}
             {type === 'expense' && (
-              <div className="flex gap-2 mb-3">
+              <div className="flex gap-2 mb-3 items-center">
                 <button type="button" onClick={() => setIsFixed(false)}
                   className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-colors ${
                     !isFixed ? 'bg-red-100 text-red-700 border border-red-300' : 'bg-gray-50 text-gray-400 border border-gray-200'
@@ -413,6 +499,13 @@ export default function BudgetPage() {
                   }`}>
                   <Pin size={11} />고정지출
                 </button>
+                {isFixed && (
+                  <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer whitespace-nowrap pl-1">
+                    <input type="checkbox" checked={isRecurring} onChange={e => setIsRecurring(e.target.checked)}
+                      className="accent-orange-500 w-3.5 h-3.5" />
+                    <RefreshCw size={11} className="text-orange-400" />매월 반복
+                  </label>
+                )}
               </div>
             )}
 
@@ -486,7 +579,6 @@ export default function BudgetPage() {
                 </button>
               </div>
               <div className="flex flex-wrap gap-2">
-                {/* 카테고리 일괄 변경 */}
                 {bulkCats.length > 0 && (
                   <div className="flex gap-1 items-center">
                     <select
@@ -502,7 +594,6 @@ export default function BudgetPage() {
                     </Button>
                   </div>
                 )}
-                {/* 고정↔변동 전환 (지출만) */}
                 {hasOnlyExpenses && (
                   <>
                     <Button size="sm" onClick={() => bulkToggleFixed(true)} disabled={bulkSaving}
@@ -515,7 +606,6 @@ export default function BudgetPage() {
                     </Button>
                   </>
                 )}
-                {/* 일괄 삭제 */}
                 <Button size="sm" variant="outline" onClick={bulkDelete} disabled={bulkSaving}
                   className="text-xs h-7 px-2 border-red-300 text-red-500 hover:bg-red-50">
                   <Trash2 size={10} className="mr-1" />삭제
@@ -528,7 +618,6 @@ export default function BudgetPage() {
             <p className="text-sm text-gray-400 py-6 text-center">내역이 없습니다.</p>
           ) : (
             <div className="space-y-0">
-              {/* 일괄 모드: 전체 선택 */}
               {bulkMode && (
                 <div className="flex items-center gap-2 py-1.5 border-b mb-1">
                   <input
@@ -557,7 +646,6 @@ export default function BudgetPage() {
                     )}
 
                     {isEditing ? (
-                      /* 인라인 편집 폼 */
                       <div className="py-2 space-y-2">
                         <div className="flex flex-wrap gap-1">
                           {editCats.map(c => (
@@ -607,7 +695,6 @@ export default function BudgetPage() {
                         </div>
                       </div>
                     ) : (
-                      /* 일반 행 */
                       <div className={`flex items-center justify-between py-2.5 group ${isSelected ? 'bg-blue-50 -mx-4 px-4 rounded' : ''}`}>
                         <div className="flex items-center gap-3">
                           {bulkMode && (
@@ -626,6 +713,11 @@ export default function BudgetPage() {
                             {entry.isFixed && (
                               <span className="inline-flex items-center gap-0.5 text-xs text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded-full border border-orange-200">
                                 <Pin size={10} />고정
+                              </span>
+                            )}
+                            {entry.isRecurring && (
+                              <span className="inline-flex items-center gap-0.5 text-xs text-orange-400 opacity-70">
+                                <RefreshCw size={9} />
                               </span>
                             )}
                             {entry.description && (

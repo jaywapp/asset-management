@@ -32,6 +32,7 @@ export async function POST(req: Request) {
     description: body.description,
     date: new Date(body.date),
     isFixed: body.isFixed ?? false,
+    isRecurring: body.isRecurring ?? false,
   }).returning()
   return NextResponse.json(row, { status: 201 })
 }

@@ -83,6 +83,7 @@ export const expenses = pgTable('expenses', {
   description: text('description'),
   date: timestamp('date').notNull(),
   isFixed: boolean('is_fixed').default(false),
+  isRecurring: boolean('is_recurring').default(false),
 })
 
 export const budgets = pgTable('budgets', {
