@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Bot } from 'lucide-react'
+import { Markdown } from '@/components/ui/markdown'
 
 const AGENT_LABELS: Record<string, string> = {
   cfo: 'CFO', risk: '리스크 매니저', investment: '투자분석',
@@ -43,7 +44,7 @@ export function ReportCard({ agent, type, content, createdAt }: Props) {
         </div>
       </CardHeader>
       <CardContent>
-        <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed line-clamp-8">{content}</p>
+        <Markdown content={content} />
       </CardContent>
     </Card>
   )

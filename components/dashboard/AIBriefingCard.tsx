@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Bot, Loader2 } from 'lucide-react'
+import { Markdown } from '@/components/ui/markdown'
 
 export function AIBriefingCard() {
   const [briefing, setBriefing] = useState('')
@@ -38,7 +39,7 @@ export function AIBriefingCard() {
             AI 분석 중...
           </div>
         ) : (
-          <p className="text-sm text-gray-700 leading-relaxed">{briefing}</p>
+          <Markdown content={briefing} />
         )}
       </CardContent>
     </Card>

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Send, Bot, User, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Markdown } from '@/components/ui/markdown'
 
 interface Message { role: 'user' | 'assistant'; content: string }
 
@@ -59,7 +60,9 @@ export function ChatInterface() {
             </div>
             <div className={cn('max-w-[80%] rounded-lg px-4 py-2.5 text-sm',
               msg.role === 'assistant' ? 'bg-blue-50 text-gray-800' : 'bg-gray-100 text-gray-800')}>
-              <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+              {msg.role === 'assistant'
+                ? <Markdown content={msg.content} />
+                : <p className="text-sm leading-relaxed">{msg.content}</p>}
             </div>
           </div>
         ))}
