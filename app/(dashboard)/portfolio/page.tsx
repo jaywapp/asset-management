@@ -113,7 +113,8 @@ export default function PortfolioPage() {
 
   const allocationData = Object.entries(
     holdings.reduce((acc: Record<string, number>, h) => {
-      const key = h.ticker.includes('.') ? '해외주식' : '국내주식'
+      const isDomestic = h.ticker.endsWith('.KS') || h.ticker.endsWith('.KQ') || /^\d{6}$/.test(h.ticker)
+      const key = isDomestic ? '국내주식' : '해외주식'
       acc[key] = (acc[key] ?? 0) + Number(h.quantity) * Number(h.currentPrice)
       return acc
     }, {})
