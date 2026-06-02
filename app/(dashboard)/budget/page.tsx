@@ -69,6 +69,9 @@ export default function BudgetPage() {
   const [pendingRecurring, setPendingRecurring] = useState<RecurringTemplate[]>([])
   const [recurringApplying, setRecurringApplying] = useState(false)
 
+  // 이미지 분석 결과 고정/반복 메타 (index → {isFixed, isRecurring})
+  const [pendingMeta, setPendingMeta] = useState<{ isFixed: boolean; isRecurring: boolean }[]>([])
+
   // 필터
   const [expenseFilter, setExpenseFilter] = useState<'all' | 'fixed' | 'variable'>('all')
 
@@ -165,12 +168,15 @@ export default function BudgetPage() {
 
   async function handleImageResult(entries: Record<string, unknown>[]) {
     setPendingEntries(entries)
+    setPendingMeta(entries.map(() => ({ isFixed: false, isRecurring: false })))
     setShowImageAnalyzer(false)
   }
 
   async function savePendingEntries() {
     setSaving(true)
-    for (const entry of pendingEntries) {
+    for (let i = 0; i < pendingEntries.length; i++) {
+      const entry = pendingEntries[i]
+      const meta = pendingMeta[i] ?? { isFixed: false, isRecurring: false }
       const isIncome = entry.type === 'income'
       await fetch(isIncome ? '/api/income' : '/api/expenses', {
         method: 'POST',
@@ -180,12 +186,14 @@ export default function BudgetPage() {
           amount: String(Math.abs(Number(entry.amount))),
           description: String(entry.description ?? ''),
           date: String(entry.date ?? new Date().toISOString().split('T')[0]),
-          ...(isIncome ? {} : { isFixed: false }),
+          ...(isIncome ? {} : { isFixed: meta.isFixed, isRecurring: meta.isFixed && meta.isRecurring }),
         }),
       })
     }
     setPendingEntries([])
+    setPendingMeta([])
     await load()
+    await checkRecurring()
     setSaving(false)
   }
 
@@ -392,26 +400,56 @@ export default function BudgetPage() {
               AI 분석 결과 ({pendingEntries.length}건) — 확인 후 저장하세요
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {pendingEntries.map((e, i) => (
-              <div key={i} className="flex justify-between items-center text-sm py-1.5 border-b last:border-0">
-                <div className="flex items-center gap-2">
-                  <span className={`w-1.5 h-1.5 rounded-full ${e.type === 'income' ? 'bg-green-500' : 'bg-red-500'}`} />
-                  <span className="text-gray-500 text-xs">{CAT_LABELS[e.category as string] ?? e.category}</span>
-                  <span className="text-gray-700">{String(e.description ?? '')}</span>
-                  <span className="text-xs text-gray-400">{String(e.date ?? '')}</span>
+          <CardContent className="space-y-0">
+            {pendingEntries.map((e, i) => {
+              const meta = pendingMeta[i] ?? { isFixed: false, isRecurring: false }
+              const isExpense = e.type !== 'income'
+              return (
+                <div key={i} className="flex justify-between items-center py-2 border-b last:border-0 gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${!isExpense ? 'bg-green-500' : meta.isFixed ? 'bg-orange-400' : 'bg-red-500'}`} />
+                    <span className="text-gray-500 text-xs shrink-0">{CAT_LABELS[e.category as string] ?? e.category}</span>
+                    <span className="text-sm text-gray-700 truncate">{String(e.description ?? '')}</span>
+                    <span className="text-xs text-gray-400 shrink-0">{String(e.date ?? '')}</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {isExpense && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => setPendingMeta(prev => prev.map((m, idx) =>
+                            idx === i ? { ...m, isFixed: !m.isFixed, isRecurring: !m.isFixed ? m.isRecurring : false } : m
+                          ))}
+                          className={`text-xs px-1.5 py-0.5 rounded border transition-colors flex items-center gap-0.5 ${
+                            meta.isFixed ? 'bg-orange-100 text-orange-700 border-orange-300' : 'bg-gray-50 text-gray-400 border-gray-200'
+                          }`}>
+                          <Pin size={9} />고정
+                        </button>
+                        {meta.isFixed && (
+                          <button
+                            onClick={() => setPendingMeta(prev => prev.map((m, idx) =>
+                              idx === i ? { ...m, isRecurring: !m.isRecurring } : m
+                            ))}
+                            className={`text-xs px-1.5 py-0.5 rounded border transition-colors flex items-center gap-0.5 ${
+                              meta.isRecurring ? 'bg-orange-100 text-orange-700 border-orange-300' : 'bg-gray-50 text-gray-400 border-gray-200'
+                            }`}>
+                            <RefreshCw size={9} />반복
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    <span className={`font-medium text-sm ${!isExpense ? 'text-green-600' : meta.isFixed ? 'text-orange-500' : 'text-red-500'}`}>
+                      {!isExpense ? '+' : '-'}{fmt(Math.abs(Number(e.amount)))}
+                    </span>
+                  </div>
                 </div>
-                <span className={`font-medium ${e.type === 'income' ? 'text-green-600' : 'text-red-500'}`}>
-                  {e.type === 'income' ? '+' : '-'}{fmt(Math.abs(Number(e.amount)))}
-                </span>
-              </div>
-            ))}
-            <div className="flex gap-2 pt-2">
+              )
+            })}
+            <div className="flex gap-2 pt-3">
               <Button size="sm" onClick={savePendingEntries} disabled={saving}
                 className="bg-green-600 hover:bg-green-700">
                 {saving ? '저장 중...' : `${pendingEntries.length}건 저장`}
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => setPendingEntries([])}>취소</Button>
+              <Button size="sm" variant="ghost" onClick={() => { setPendingEntries([]); setPendingMeta([]) }}>취소</Button>
             </div>
           </CardContent>
         </Card>
