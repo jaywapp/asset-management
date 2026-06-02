@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { CashFlowChart } from '@/components/budget/CashFlowChart'
-import { TrendingUp, TrendingDown, Trash2 } from 'lucide-react'
+import { TrendingUp, TrendingDown, Trash2, Camera } from 'lucide-react'
+import { ImageAnalyzer } from '@/components/ui/image-analyzer'
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW', maximumFractionDigits: 0 }).format(n)
@@ -42,6 +43,8 @@ export default function BudgetPage() {
   const [description, setDescription] = useState('')
   const [date, setDate] = useState(now.toISOString().split('T')[0])
   const [saving, setSaving] = useState(false)
+  const [showImageAnalyzer, setShowImageAnalyzer] = useState(false)
+  const [pendingEntries, setPendingEntries] = useState<any[]>([])
 
   async function load() {
     const [inc, exp] = await Promise.all([
@@ -82,6 +85,32 @@ export default function BudgetPage() {
     setSaving(false)
   }
 
+  async function handleImageResult(entries: Record<string, unknown>[]) {
+    setPendingEntries(entries)
+    setShowImageAnalyzer(false)
+  }
+
+  async function savePendingEntries() {
+    setSaving(true)
+    for (const entry of pendingEntries) {
+      const isIncome = entry.type === 'income'
+      await fetch(isIncome ? '/api/income' : '/api/expenses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: entry.category ?? 'other',
+          amount: String(Math.abs(Number(entry.amount))),
+          description: String(entry.description ?? ''),
+          date: String(entry.date ?? new Date().toISOString().split('T')[0]),
+          ...(isIncome ? {} : { isFixed: false }),
+        }),
+      })
+    }
+    setPendingEntries([])
+    await load()
+    setSaving(false)
+  }
+
   async function handleDelete(entry: Entry) {
     const endpoint = entry.type === 'income' ? `/api/income/${entry.id}` : `/api/expenses/${entry.id}`
     await fetch(endpoint, { method: 'DELETE' })
@@ -99,6 +128,9 @@ export default function BudgetPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">가계부</h1>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowImageAnalyzer(!showImageAnalyzer)}>
+            <Camera size={14} className="mr-1" />이미지 입력
+          </Button>
           <select value={year} onChange={e => setYear(Number(e.target.value))}
             className="text-sm border rounded px-2 py-1 bg-white">
             {[2023, 2024, 2025, 2026].map(y => <option key={y} value={y}>{y}년</option>)}
@@ -111,6 +143,54 @@ export default function BudgetPage() {
           </select>
         </div>
       </div>
+
+      {/* 이미지 분석 영역 */}
+      {showImageAnalyzer && (
+        <Card className="border-purple-200">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Camera size={14} className="text-purple-500" />AI 이미지 분석
+            </CardTitle>
+            <p className="text-xs text-gray-400">영수증, 카드 사용내역, 은행 출금내역을 업로드하세요.</p>
+          </CardHeader>
+          <CardContent>
+            <ImageAnalyzer context="budget" onResult={handleImageResult} label="거래내역 이미지 업로드" />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* AI 분석 결과 확인 */}
+      {pendingEntries.length > 0 && (
+        <Card className="border-green-200 bg-green-50/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-green-700">
+              AI 분석 결과 ({pendingEntries.length}건) — 확인 후 저장하세요
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {pendingEntries.map((e, i) => (
+              <div key={i} className="flex justify-between items-center text-sm py-1.5 border-b last:border-0">
+                <div className="flex items-center gap-2">
+                  <span className={`w-1.5 h-1.5 rounded-full ${e.type === 'income' ? 'bg-green-500' : 'bg-red-500'}`} />
+                  <span className="text-gray-500 text-xs">{CAT_LABELS[e.category as string] ?? e.category}</span>
+                  <span className="text-gray-700">{String(e.description ?? '')}</span>
+                  <span className="text-xs text-gray-400">{String(e.date ?? '')}</span>
+                </div>
+                <span className={`font-medium ${e.type === 'income' ? 'text-green-600' : 'text-red-500'}`}>
+                  {e.type === 'income' ? '+' : '-'}{fmt(Math.abs(Number(e.amount)))}
+                </span>
+              </div>
+            ))}
+            <div className="flex gap-2 pt-2">
+              <Button size="sm" onClick={savePendingEntries} disabled={saving}
+                className="bg-green-600 hover:bg-green-700">
+                {saving ? '저장 중...' : `${pendingEntries.length}건 저장`}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setPendingEntries([])}>취소</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 요약 카드 */}
       <div className="grid grid-cols-3 sm:grid-cols-3 gap-3">
