@@ -18,7 +18,9 @@ export async function GET(req: Request) {
     gte(expenses.date, monthStart),
     lte(expenses.date, monthEnd),
   ))
-  return NextResponse.json(rows)
+  return NextResponse.json(rows, {
+    headers: { 'Cache-Control': 'private, max-age=10, stale-while-revalidate=30' },
+  })
 }
 
 export async function POST(req: Request) {

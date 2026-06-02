@@ -14,7 +14,9 @@ export async function GET() {
   if (!accountIds.length) return NextResponse.json([])
 
   const rows = await db.select().from(holdings).where(inArray(holdings.accountId, accountIds))
-  return NextResponse.json(rows)
+  return NextResponse.json(rows, {
+    headers: { 'Cache-Control': 'private, max-age=10, stale-while-revalidate=30' },
+  })
 }
 
 export async function POST(req: Request) {

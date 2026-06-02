@@ -8,7 +8,9 @@ export async function GET() {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const rows = await db.select().from(accounts).where(eq(accounts.userId, session.user.id))
-  return NextResponse.json(rows)
+  return NextResponse.json(rows, {
+    headers: { 'Cache-Control': 'private, max-age=30, stale-while-revalidate=60' },
+  })
 }
 
 export async function POST(req: Request) {
