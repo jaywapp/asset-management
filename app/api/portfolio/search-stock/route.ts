@@ -8,18 +8,17 @@ interface StockItem {
   type: string
 }
 
-// 한국어 포함 또는 6자리 숫자 → 네이버 금융 사용
-function isKoreanQuery(q: string) {
-  return /[가-힣]/.test(q) || /^\d{4,6}$/.test(q)
+// ETF 브랜드명 접두사로 구분
+const ETF_PREFIXES = ['KODEX', 'TIGER', 'ARIRANG', 'KBSTAR', 'HANARO', 'KOSEF', 'MASTER', 'SOL', 'ACE', 'PLUS', 'FOCUS', 'TREX', 'TIMEFOLIO', 'VITA']
+
+function isEtfName(name: string) {
+  const upper = name.toUpperCase()
+  return ETF_PREFIXES.some(p => upper.startsWith(p))
 }
 
-// KOSPI/KOSDAQ 코드를 Yahoo Finance 심볼로 변환
-function toYahooSymbol(code: string, isKosdaq: boolean): string {
-  return isKosdaq ? `${code}.KQ` : `${code}.KS`
-}
-
+// Naver autocomplete API — 국내 주식/ETF 한글명 검색
 async function searchNaver(q: string): Promise<StockItem[]> {
-  const url = `https://m.stock.naver.com/api/search/all?keyword=${encodeURIComponent(q)}&page=1&pageSize=15`
+  const url = `https://ac.stock.naver.com/ac?q=${encodeURIComponent(q)}&target=stock`
   const res = await fetch(url, {
     headers: {
       'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15',
@@ -29,37 +28,23 @@ async function searchNaver(q: string): Promise<StockItem[]> {
   })
   if (!res.ok) return []
 
-  const data = await res.json()
-  const stocks = (data.stocks ?? data.items ?? []) as {
-    itemCode?: string; reutersCode?: string; symbolCode?: string
-    itemName?: string; name?: string
-    stockExchangeType?: { code?: string; name?: string }
-    marketType?: string
-    itemType?: string; type?: string
-  }[]
+  const data = await res.json() as {
+    items?: {
+      code: string
+      name: string
+      typeCode?: string   // KOSPI | KOSDAQ
+      typeName?: string
+      category?: string
+    }[]
+  }
 
-  return stocks.map(s => {
-    const code = s.itemCode ?? s.reutersCode ?? s.symbolCode ?? ''
-    const name = s.itemName ?? s.name ?? ''
-    const market = s.stockExchangeType?.name ?? s.marketType ?? '코스피'
-    const marketCode = s.stockExchangeType?.code ?? ''
-    const type = s.itemType ?? s.type ?? 'STOCK'
+  return (data.items ?? []).map(item => {
+    const isKosdaq = item.typeCode === 'KOSDAQ' || item.typeName?.includes('코스닥')
+    const symbol = isKosdaq ? `${item.code}.KQ` : `${item.code}.KS`
+    const exchange = isKosdaq ? '코스닥' : '코스피'
+    const type = isEtfName(item.name) ? 'ETF' : '주식'
 
-    const isKosdaq = market.includes('코스닥') || marketCode === 'KOE' || marketCode === 'KOSDAQ'
-    const isNumeric = /^\d+$/.test(code)
-    const symbol = isNumeric ? toYahooSymbol(code, isKosdaq) : code
-
-    const exchangeLabel = market.includes('코스닥') ? '코스닥'
-      : market.includes('코스피') ? '코스피'
-      : market.includes('ETF') ? 'ETF'
-      : market
-
-    return {
-      symbol,
-      name,
-      exchange: exchangeLabel,
-      type: type === 'ETF' ? 'ETF' : '주식',
-    }
+    return { symbol, name: item.name, exchange, type }
   }).filter(s => s.name && s.symbol)
 }
 
@@ -99,16 +84,15 @@ export async function GET(req: Request) {
   if (!q || q.length < 1) return NextResponse.json([])
 
   try {
-    let results: StockItem[]
-
-    if (isKoreanQuery(q)) {
-      results = await searchNaver(q)
-      if (!results.length) results = await searchYahoo(q)
-    } else {
-      results = await searchYahoo(q)
+    // 네이버 먼저 시도 (한글명 + 종목코드 + 영문 종목명 모두 처리)
+    const naverResults = await searchNaver(q)
+    if (naverResults.length > 0) {
+      return NextResponse.json(naverResults.slice(0, 12))
     }
 
-    return NextResponse.json(results.slice(0, 12))
+    // 네이버 결과 없으면 Yahoo (해외 주식/ETF)
+    const yahooResults = await searchYahoo(q)
+    return NextResponse.json(yahooResults.slice(0, 12))
   } catch {
     return NextResponse.json([])
   }
