@@ -65,9 +65,11 @@ export function HoldingsTable({ holdings }: { holdings: Holding[] }) {
               <TableCell className="text-right text-sm">{fmt(cur)}</TableCell>
               <TableCell className="text-right font-medium">{fmt(value)}</TableCell>
               <TableCell className="text-right">
-                <Badge variant={pct >= 0 ? 'default' : 'destructive'} className="text-xs">
+                <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                  pct > 0 ? 'bg-red-50 text-red-600' : pct < 0 ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'
+                }`}>
                   {pct >= 0 ? '+' : ''}{pct.toFixed(2)}%
-                </Badge>
+                </span>
               </TableCell>
               <TableCell className="text-right text-xs text-gray-500">{weight.toFixed(1)}%</TableCell>
             </TableRow>
