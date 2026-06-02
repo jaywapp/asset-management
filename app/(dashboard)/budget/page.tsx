@@ -65,6 +65,9 @@ export default function BudgetPage() {
   const [showImageAnalyzer, setShowImageAnalyzer] = useState(false)
   const [pendingEntries, setPendingEntries] = useState<any[]>([])
 
+  // 이월 금액
+  const [carryover, setCarryover] = useState<number | null>(null)
+
   // 반복 고정지출
   const [pendingRecurring, setPendingRecurring] = useState<RecurringTemplate[]>([])
   const [recurringApplying, setRecurringApplying] = useState(false)
@@ -84,6 +87,14 @@ export default function BudgetPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkCategory, setBulkCategory] = useState('')
   const [bulkSaving, setBulkSaving] = useState(false)
+
+  async function loadCarryover() {
+    const res = await fetch(`/api/budget/carryover?year=${year}&month=${month}`)
+    if (res.ok) {
+      const data = await res.json()
+      setCarryover(data.carryover)
+    }
+  }
 
   async function load() {
     const [inc, exp] = await Promise.all([
@@ -114,6 +125,7 @@ export default function BudgetPage() {
 
   useEffect(() => {
     load()
+    loadCarryover()
     checkRecurring()
   }, [year, month])
 
@@ -304,6 +316,7 @@ export default function BudgetPage() {
   const totalFixed = fixedExpenses.reduce((s, e) => s + Number(e.amount), 0)
   const totalVariable = variableExpenses.reduce((s, e) => s + Number(e.amount), 0)
   const savings = totalIncome - totalExpenses
+  const realBalance = (carryover ?? 0) + savings  // 이월 + 이번달 순저축
   const cats = type === 'income' ? INCOME_CATS : EXPENSE_CATS
 
   const filteredEntries = entries.filter(e => {
@@ -455,51 +468,78 @@ export default function BudgetPage() {
         </Card>
       )}
 
-      {/* 요약 카드 */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="border-green-100">
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
-              <TrendingUp size={12} className="text-green-500" /> 수입
-            </div>
-            <p className="text-xl font-bold text-green-600">{fmt(totalIncome)}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-orange-100">
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
-              <Pin size={12} className="text-orange-500" /> 고정지출
-            </div>
-            <p className="text-xl font-bold text-orange-500">{fmt(totalFixed)}</p>
-            {totalExpenses > 0 && (
-              <p className="text-xs text-gray-400 mt-0.5">{((totalFixed / totalExpenses) * 100).toFixed(0)}%</p>
-            )}
-          </CardContent>
-        </Card>
-        <Card className="border-red-100">
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
-              <TrendingDown size={12} className="text-red-500" /> 변동지출
-            </div>
-            <p className="text-xl font-bold text-red-500">{fmt(totalVariable)}</p>
-            {totalExpenses > 0 && (
-              <p className="text-xs text-gray-400 mt-0.5">{((totalVariable / totalExpenses) * 100).toFixed(0)}%</p>
-            )}
-          </CardContent>
-        </Card>
-        <Card className={savings >= 0 ? 'border-blue-100' : 'border-red-100'}>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-gray-500 mb-1">순저축</p>
-            <p className={`text-xl font-bold ${savings >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
-              {fmt(savings)}
-            </p>
-            {totalIncome > 0 && (
+      {/* 요약 카드 — 2행 레이아웃 */}
+      <div className="space-y-2">
+        {/* 1행: 이월 + 수입 + 지출 합계 */}
+        <div className="grid grid-cols-3 gap-2">
+          <Card className={carryover === null ? 'border-gray-100' : carryover >= 0 ? 'border-blue-100' : 'border-red-100'}>
+            <CardContent className="pt-3 pb-3">
+              <p className="text-xs text-gray-500 mb-1">이월잔액</p>
+              {carryover === null
+                ? <p className="text-base font-bold text-gray-300">-</p>
+                : <p className={`text-base font-bold ${carryover >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                    {carryover >= 0 ? '+' : ''}{fmt(carryover)}
+                  </p>
+              }
+              <p className="text-xs text-gray-400 mt-0.5">전월 누적</p>
+            </CardContent>
+          </Card>
+          <Card className="border-green-100">
+            <CardContent className="pt-3 pb-3">
+              <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
+                <TrendingUp size={11} className="text-green-500" /> 수입
+              </div>
+              <p className="text-base font-bold text-green-600">{fmt(totalIncome)}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-red-100">
+            <CardContent className="pt-3 pb-3">
+              <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
+                <TrendingDown size={11} className="text-red-500" /> 지출
+              </div>
+              <p className="text-base font-bold text-red-500">{fmt(totalExpenses)}</p>
               <p className="text-xs text-gray-400 mt-0.5">
-                {((savings / totalIncome) * 100).toFixed(1)}%
+                고정 {fmt(totalFixed)} / 변동 {fmt(totalVariable)}
               </p>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
+        {/* 2행: 고정지출 + 변동지출 + 실질잔액 */}
+        <div className="grid grid-cols-3 gap-2">
+          <Card className="border-orange-100">
+            <CardContent className="pt-3 pb-3">
+              <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
+                <Pin size={11} className="text-orange-500" /> 고정지출
+              </div>
+              <p className="text-base font-bold text-orange-500">{fmt(totalFixed)}</p>
+              {totalExpenses > 0 && (
+                <p className="text-xs text-gray-400 mt-0.5">{((totalFixed / totalExpenses) * 100).toFixed(0)}%</p>
+              )}
+            </CardContent>
+          </Card>
+          <Card className="border-gray-100">
+            <CardContent className="pt-3 pb-3">
+              <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
+                <TrendingDown size={11} className="text-gray-400" /> 변동지출
+              </div>
+              <p className="text-base font-bold text-gray-600">{fmt(totalVariable)}</p>
+              {totalExpenses > 0 && (
+                <p className="text-xs text-gray-400 mt-0.5">{((totalVariable / totalExpenses) * 100).toFixed(0)}%</p>
+              )}
+            </CardContent>
+          </Card>
+          <Card className={realBalance >= 0 ? 'border-blue-200 bg-blue-50/30' : 'border-red-200 bg-red-50/30'}>
+            <CardContent className="pt-3 pb-3">
+              <p className="text-xs text-gray-500 mb-1">실질잔액</p>
+              <p className={`text-base font-bold ${realBalance >= 0 ? 'text-blue-700' : 'text-red-600'}`}>
+                {realBalance >= 0 ? '+' : ''}{fmt(realBalance)}
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                이월 {savings >= 0 ? '+' : ''}{fmt(savings)}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* 빠른 입력 폼 */}
