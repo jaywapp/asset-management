@@ -18,7 +18,7 @@ export const agentTools: Tool[] = [
   },
   {
     name: 'get_monthly_cashflow',
-    description: '특정 월의 수입과 지출 합계를 조회한다',
+    description: '특정 월의 수입과 지출 합계를 조회한다. 고정지출/변동지출 구분, 카테고리별 내역, 순저축 포함',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -76,11 +76,19 @@ export async function executeToolCall(name: string, input: ToolInput, userId: st
       db.select().from(income).where(and(eq(income.userId, userId), gte(income.date, start), lte(income.date, end))),
       db.select().from(expenses).where(and(eq(expenses.userId, userId), gte(expenses.date, start), lte(expenses.date, end))),
     ])
+    const fixedExp = exp.filter(e => e.isFixed)
+    const variableExp = exp.filter(e => !e.isFixed)
     return JSON.stringify({
       totalIncome: inc.reduce((s, i) => s + Number(i.amount), 0),
       totalExpenses: exp.reduce((s, e) => s + Number(e.amount), 0),
+      totalFixedExpenses: fixedExp.reduce((s, e) => s + Number(e.amount), 0),
+      totalVariableExpenses: variableExp.reduce((s, e) => s + Number(e.amount), 0),
+      netSavings: inc.reduce((s, i) => s + Number(i.amount), 0) - exp.reduce((s, e) => s + Number(e.amount), 0),
       incomeByCategory: inc.reduce((acc: Record<string, number>, i) => { acc[i.category] = (acc[i.category] ?? 0) + Number(i.amount); return acc }, {}),
       expensesByCategory: exp.reduce((acc: Record<string, number>, e) => { acc[e.category] = (acc[e.category] ?? 0) + Number(e.amount); return acc }, {}),
+      fixedExpensesByCategory: fixedExp.reduce((acc: Record<string, number>, e) => { acc[e.category] = (acc[e.category] ?? 0) + Number(e.amount); return acc }, {}),
+      variableExpensesByCategory: variableExp.reduce((acc: Record<string, number>, e) => { acc[e.category] = (acc[e.category] ?? 0) + Number(e.amount); return acc }, {}),
+      fixedExpenseItems: fixedExp.map(e => ({ category: e.category, amount: Number(e.amount), description: e.description, isRecurring: e.isRecurring })),
     })
   }
 
