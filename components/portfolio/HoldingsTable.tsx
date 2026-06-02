@@ -43,10 +43,21 @@ export function HoldingsTable({ holdings }: { holdings: Holding[] }) {
           const cost = qty * avg
           const pct = cost > 0 ? ((value - cost) / cost) * 100 : 0
           const weight = totalValue > 0 ? (value / totalValue) * 100 : 0
+          const exchange = h.ticker.endsWith('.KS') ? '코스피'
+            : h.ticker.endsWith('.KQ') ? '코스닥'
+            : /^\d{6}$/.test(h.ticker) ? '국내'
+            : h.ticker.includes('.') ? h.ticker.split('.').pop()
+            : '해외'
+          const isKorean = h.ticker.endsWith('.KS') || h.ticker.endsWith('.KQ') || /^\d{6}$/.test(h.ticker)
           return (
             <TableRow key={h.id}>
               <TableCell>
-                <div className="font-medium text-gray-900">{h.ticker}</div>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-medium text-gray-900">{h.ticker}</span>
+                  <span className={`text-xs px-1 py-0.5 rounded ${isKorean ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'}`}>
+                    {exchange}
+                  </span>
+                </div>
                 <div className="text-xs text-gray-400">{h.name}</div>
               </TableCell>
               <TableCell className="text-right text-sm">{qty.toLocaleString()}</TableCell>
