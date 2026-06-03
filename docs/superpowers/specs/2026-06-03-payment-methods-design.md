@@ -280,3 +280,119 @@ transferType?: string      // 'internal' | 'external' | 'none'
 - 계좌 잔액 실시간 추적 (오픈뱅킹 연동)
 - 카드사 자동 연동 (마이데이터 라이선스 필요)
 - 결제수단별 예산 설정
+
+---
+
+## 9. 카드값 결제 처리 (추가 설계)
+
+### 개념 정리
+
+카드 관련 지출은 두 레이어가 존재하며, 이중계산을 막기 위해 역할을 분리한다.
+
+| 레이어 | 예시 | 처리 방식 |
+|--------|------|----------|
+| **카드 사용내역** | 마트 50,000원 / 삼성카드 결제 | `expenses` 기록 (`paymentMethodId = 삼성카드`) |
+| **카드값 납부** | 신한은행 → 삼성카드 500,000원 | `expenses` + `transferType = internal` + `transferToId = 삼성카드` |
+
+> 카드값 납부는 `internal transfer`로 기록하면 지출 통계에서 자동 제외되고 Sankey에만 표시된다.  
+> `linkedBankId`(카드 → 결제 계좌 연결)가 이미 이 흐름을 위해 설계되어 있으므로 스키마 변경 없음.
+
+### UI 동작
+
+- 지출 입력 폼에서 `transferType = internal` + `transferToId = 카드` 선택 시 → "카드값 납부"로 자동 라벨링
+- 카드의 `linkedBankId`가 지정돼 있으면 결제 계좌를 자동 추천
+- 가계부 지출 합계에서 카드값 납부 항목은 제외 (이미 사용내역으로 계산됨)
+
+### 결제통장 선입금 패턴 (추가)
+
+카드를 사용한 즉시 결제 통장에 같은 금액을 이체하는 패턴을 지원한다.
+
+**흐름:**
+```
+① 삼성카드로 마트 50,000원  →  expense (지출 통계 포함)
+② 허브 → 신한은행(결제통장) 50,000원  →  internal transfer (지출 통계 제외)
+③ 월말 신한은행 → 삼성카드 납부  →  internal transfer (지출 통계 제외)
+```
+
+**스키마 변경 없음** — ②, ③ 모두 기존 `transferType = internal`로 처리.
+
+**UX: 지출 입력 시 "결제통장 선입금" 옵션**
+- 카드(`credit_card` / `debit_card`)로 지출 기록할 때 "결제통장에 바로 이체" 체크박스 표시
+- 체크 시: 동일 금액의 `internal transfer` (paymentMethodId = 허브계좌, transferToId = 카드의 `linkedBankId`) 자동 동시 생성
+- `linkedBankId`가 없는 카드는 옵션 비표시
+- 생성된 이체 항목은 원본 지출과 같은 날짜/메모로 묶여 표시 (`description: "[삼성카드] 마트 선입금"`)
+
+---
+
+## 10. 반복 지출 템플릿 (추가 설계)
+
+### 문제
+
+`isRecurring: true`만으로는 두 케이스를 구분하기 어렵다.
+
+| 유형 | 예시 | 금액 |
+|------|------|------|
+| **완전 고정 반복** | 넷플릭스, 보험료 | 매달 동일 |
+| **변동 반복** | 관리비, 전기요금, 통신비 | 매달 다름 |
+
+### 새 테이블: `recurringTemplates`
+
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| id | text PK | cuid2 |
+| userId | text FK | 등록한 사용자 |
+| category | expenseCatEnum | 지출 카테고리 |
+| description | text | 항목명 (예: "관리비", "넷플릭스") |
+| paymentMethodId | text nullable FK | 결제수단 |
+| amountType | enum `'fixed' \| 'variable'` | 고정/변동 구분 |
+| estimatedAmount | decimal nullable | 변동일 때 참고용 예상 금액 |
+| fixedAmount | decimal nullable | 고정일 때 정확한 금액 |
+| dayOfMonth | integer nullable | 보통 결제일 (예: 25) |
+| isActive | boolean default true | 활성 여부 |
+| createdAt | timestamp | |
+
+> `amountType = 'fixed'`이면 `fixedAmount` 필수, 매달 자동 생성.  
+> `amountType = 'variable'`이면 `estimatedAmount`는 참고용, 매달 실제 금액 직접 입력.
+
+### `expenses` 추가 컬럼
+
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| recurringTemplateId | text nullable FK | 반복 템플릿 참조 |
+
+### 신규 enum
+
+```ts
+recurringAmountTypeEnum: 'fixed' | 'variable'
+```
+
+### 월별 처리 흐름
+
+```
+매달 1일 (cron):
+  → recurringTemplates 조회 (isActive: true)
+  → amountType = 'fixed': expenses 자동 생성 (fixedAmount 그대로)
+  → amountType = 'variable': expenses 자동 생성 (amount = 0, "미입력" 상태)
+```
+
+### UI
+
+- **설정 → 반복 지출 탭**: 템플릿 목록, 추가/수정/삭제, 활성화 토글
+- **가계부 페이지 상단 배너**: "이번 달 미입력 반복 지출: [관리비, 전기요금] — 금액 입력하기"
+  - `recurringTemplateId`가 있고 `amount = 0`인 항목 감지
+- **지출 입력 시**: 반복 템플릿 선택 드롭다운 → 선택하면 category/paymentMethodId 자동 채움
+
+### API
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | `/api/recurring-templates` | 목록 조회 |
+| POST | `/api/recurring-templates` | 등록 |
+| PATCH | `/api/recurring-templates/[id]` | 수정 |
+| DELETE | `/api/recurring-templates/[id]` | 삭제 |
+| POST | `/api/cron/monthly` | 기존 크론에 자동 생성 로직 추가 |
+
+### CFO 에이전트 연동
+
+- "이번 달 관리비 아직 안 입력됐어요" 같은 능동 알림 가능
+- `get_expense_items`에 `recurringTemplateId` 필터 추가
