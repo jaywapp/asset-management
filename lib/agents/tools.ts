@@ -50,6 +50,7 @@ export const agentTools: Tool[] = [
         fixedOnly: { type: 'boolean', description: 'true면 고정지출만 조회' },
         category: { type: 'string', description: '카테고리 필터 (food/transport/housing/medical/education/leisure/subscription/other). 없으면 전체' },
         paymentMethodId: { type: 'string', description: '결제수단 ID (선택). 이 값이 있으면 해당 카드/계좌 지출만 조회' },
+        recurringTemplateId: { type: 'string', description: '반복 지출 템플릿 ID. 특정 반복 항목의 이력 조회에 사용' },
       },
       required: ['year', 'month'],
     },
@@ -170,8 +171,8 @@ export async function executeToolCall(name: string, input: ToolInput, userId: st
   }
 
   if (name === 'get_expense_items') {
-    const { year, month, fixedOnly, category, paymentMethodId } = input as {
-      year: number; month: number; fixedOnly?: boolean; category?: string; paymentMethodId?: string
+    const { year, month, fixedOnly, category, paymentMethodId, recurringTemplateId } = input as {
+      year: number; month: number; fixedOnly?: boolean; category?: string; paymentMethodId?: string; recurringTemplateId?: string
     }
     const start = new Date(year, month - 1, 1)
     const end = new Date(year, month, 0)
@@ -183,6 +184,7 @@ export async function executeToolCall(name: string, input: ToolInput, userId: st
     if (fixedOnly) rows = rows.filter(e => e.isFixed)
     if (category) rows = rows.filter(e => e.category === category)
     if (paymentMethodId) rows = rows.filter(e => e.paymentMethodId === paymentMethodId)
+    if (recurringTemplateId) rows = rows.filter(e => e.recurringTemplateId === recurringTemplateId)
     return JSON.stringify(rows.map(e => ({
       date: e.date.toISOString().split('T')[0],
       category: e.category,
