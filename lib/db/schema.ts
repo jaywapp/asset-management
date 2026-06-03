@@ -80,7 +80,7 @@ export const paymentMethods = pgTable('payment_methods', {
   isHub: boolean('is_hub').notNull().default(false),
   accountNumber: text('account_number'),
   color: text('color'),
-  linkedBankId: text('linked_bank_id').references((): AnyPgColumn => paymentMethods.id),
+  linkedBankId: text('linked_bank_id').references((): AnyPgColumn => paymentMethods.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
@@ -92,7 +92,7 @@ export const income = pgTable('income', {
   description: text('description'),
   date: timestamp('date').notNull(),
   isRecurring: boolean('is_recurring').default(false),
-  paymentMethodId: text('payment_method_id').references(() => paymentMethods.id),
+  paymentMethodId: text('payment_method_id').references(() => paymentMethods.id, { onDelete: 'set null' }),
 })
 
 export const expenses = pgTable('expenses', {
@@ -104,9 +104,9 @@ export const expenses = pgTable('expenses', {
   date: timestamp('date').notNull(),
   isFixed: boolean('is_fixed').default(false),
   isRecurring: boolean('is_recurring').default(false),
-  paymentMethodId: text('payment_method_id').references(() => paymentMethods.id),
+  paymentMethodId: text('payment_method_id').references(() => paymentMethods.id, { onDelete: 'set null' }),
   transferType: transferTypeEnum('transfer_type'),
-  transferToId: text('transfer_to_id').references(() => paymentMethods.id),
+  transferToId: text('transfer_to_id').references(() => paymentMethods.id, { onDelete: 'set null' }),
 })
 
 export const budgets = pgTable('budgets', {
