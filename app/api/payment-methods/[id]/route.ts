@@ -17,18 +17,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       .where(eq(paymentMethods.isHub, true))
   }
 
+  const updateData: Record<string, unknown> = {}
+  if (body.name !== undefined) updateData.name = body.name
+  if (body.type !== undefined) updateData.type = body.type
+  if (body.institution !== undefined) updateData.institution = body.institution
+  if (body.owner !== undefined) updateData.owner = body.owner
+  if (body.isShared !== undefined) updateData.isShared = body.isShared
+  if (body.isHub !== undefined) updateData.isHub = body.isHub
+  if (body.accountNumber !== undefined) updateData.accountNumber = body.accountNumber
+  if (body.color !== undefined) updateData.color = body.color
+  if (body.linkedBankId !== undefined) updateData.linkedBankId = body.linkedBankId
+
   const [row] = await db.update(paymentMethods)
-    .set({
-      name: body.name,
-      type: body.type,
-      institution: body.institution,
-      owner: body.owner,
-      isShared: body.isShared,
-      isHub: body.isHub,
-      accountNumber: body.accountNumber,
-      color: body.color,
-      linkedBankId: body.linkedBankId,
-    })
+    .set(updateData)
     .where(eq(paymentMethods.id, id))
     .returning()
   return NextResponse.json(row)
