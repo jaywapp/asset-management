@@ -14,6 +14,7 @@ export const reportTypeEnum = pgEnum('report_type', ['daily', 'weekly', 'monthly
 export const paymentMethodTypeEnum = pgEnum('payment_method_type', ['credit_card', 'debit_card', 'bank'])
 export const ownerEnum = pgEnum('owner', ['husband', 'wife', 'joint'])
 export const transferTypeEnum = pgEnum('transfer_type', ['internal', 'external'])
+export const recurringAmountTypeEnum = pgEnum('recurring_amount_type', ['fixed', 'variable'])
 
 export const users = pgTable('users', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
@@ -84,6 +85,20 @@ export const paymentMethods = pgTable('payment_methods', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
+export const recurringTemplates = pgTable('recurring_templates', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  category: expenseCatEnum('category').notNull(),
+  description: text('description').notNull(),
+  paymentMethodId: text('payment_method_id').references(() => paymentMethods.id, { onDelete: 'set null' }),
+  amountType: recurringAmountTypeEnum('amount_type').notNull(),
+  estimatedAmount: decimal('estimated_amount', { precision: 18, scale: 0 }),
+  fixedAmount: decimal('fixed_amount', { precision: 18, scale: 0 }),
+  dayOfMonth: integer('day_of_month'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
 export const income = pgTable('income', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -107,6 +122,7 @@ export const expenses = pgTable('expenses', {
   paymentMethodId: text('payment_method_id').references(() => paymentMethods.id, { onDelete: 'set null' }),
   transferType: transferTypeEnum('transfer_type'),
   transferToId: text('transfer_to_id').references(() => paymentMethods.id, { onDelete: 'set null' }),
+  recurringTemplateId: text('recurring_template_id').references(() => recurringTemplates.id, { onDelete: 'set null' }),
 })
 
 export const budgets = pgTable('budgets', {
