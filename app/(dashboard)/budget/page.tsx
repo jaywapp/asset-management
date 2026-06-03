@@ -32,9 +32,22 @@ interface Entry {
   date: string
   isFixed?: boolean
   isRecurring?: boolean
+  paymentMethodId?: string | null
+  recurringTemplateId?: string | null
 }
 
 interface RecurringTemplate {
+  id: string
+  category: string
+  description: string
+  amountType: 'fixed' | 'variable'
+  estimatedAmount: string | null
+  fixedAmount: string | null
+  paymentMethodId: string | null
+  isActive: boolean
+}
+
+interface PendingRecurringItem {
   id: string
   category: string
   amount: string
@@ -71,7 +84,7 @@ export default function BudgetPage() {
   const [carryover, setCarryover] = useState<number | null>(null)
 
   // 반복 고정지출
-  const [pendingRecurring, setPendingRecurring] = useState<RecurringTemplate[]>([])
+  const [pendingRecurring, setPendingRecurring] = useState<PendingRecurringItem[]>([])
   const [recurringApplying, setRecurringApplying] = useState(false)
 
   // 이미지 분석 결과 고정/반복 메타 (index → {isFixed, isRecurring})
@@ -89,6 +102,11 @@ export default function BudgetPage() {
   const [paymentMethodsList, setPaymentMethodsList] = useState<any[]>([])
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState('')
   const [transferData, setTransferData] = useState<{ hub: any; flows: any[] } | null>(null)
+  // 선입금 체크박스
+  const [prefundTransfer, setPrefundTransfer] = useState(false)
+  // 반복 템플릿 드롭다운
+  const [selectedTemplateId, setSelectedTemplateId] = useState('')
+  const [recurringTemplatesList, setRecurringTemplatesList] = useState<RecurringTemplate[]>([])
 
   // 일괄 편집
   const [bulkMode, setBulkMode] = useState(false)
@@ -146,6 +164,10 @@ export default function BudgetPage() {
   }, [])
 
   useEffect(() => {
+    fetch('/api/recurring-templates').then(r => r.json()).then(setRecurringTemplatesList)
+  }, [])
+
+  useEffect(() => {
     setCategory(type === 'income' ? 'salary' : 'food')
     if (type === 'income') { setIsFixed(false); setIsRecurring(false) }
   }, [type])
@@ -158,18 +180,58 @@ export default function BudgetPage() {
     e.preventDefault()
     if (!amount || Number(amount) <= 0) return
     setSaving(true)
+
+    const selectedMethod = paymentMethodsList.find(m => m.id === selectedPaymentMethodId)
+    const hub = paymentMethodsList.find(m => m.isHub)
+
     const endpoint = type === 'income' ? '/api/income' : '/api/expenses'
     const body = type === 'income'
-      ? { category, amount, description, date, paymentMethodId: selectedPaymentMethodId || undefined }
-      : { category, amount, description, date, isFixed, isRecurring: isFixed && isRecurring, paymentMethodId: selectedPaymentMethodId || undefined }
+      ? {
+          category, amount, description, date,
+          paymentMethodId: selectedPaymentMethodId || undefined,
+        }
+      : {
+          category, amount, description, date, isFixed, isRecurring: isFixed && isRecurring,
+          paymentMethodId: selectedPaymentMethodId || undefined,
+          recurringTemplateId: selectedTemplateId || undefined,
+        }
+
     await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
+
+    if (
+      type === 'expense' &&
+      prefundTransfer &&
+      selectedMethod &&
+      (selectedMethod.type === 'credit_card' || selectedMethod.type === 'debit_card') &&
+      selectedMethod.linkedBankId &&
+      hub
+    ) {
+      await fetch('/api/expenses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category,
+          amount,
+          description: `[${selectedMethod.name}] ${description || '선입금'}`,
+          date,
+          isFixed: false,
+          isRecurring: false,
+          paymentMethodId: hub.id,
+          transferType: 'internal',
+          transferToId: selectedMethod.linkedBankId,
+        }),
+      })
+    }
+
     setAmount('')
     setDescription('')
     setDate(now.toISOString().split('T')[0])
+    setPrefundTransfer(false)
+    setSelectedTemplateId('')
     await load()
     await checkRecurring()
     setSaving(false)
@@ -335,6 +397,15 @@ export default function BudgetPage() {
   const realBalance = (carryover ?? 0) + savings  // 이월 + 이번달 순저축
   const cats = type === 'income' ? INCOME_CATS : EXPENSE_CATS
 
+  const pendingVariableTemplates = recurringTemplatesList.filter(tmpl => {
+    if (!tmpl.isActive || tmpl.amountType !== 'variable') return false
+    return !entries.some(e =>
+      e.type === 'expense' &&
+      e.recurringTemplateId === tmpl.id &&
+      Number(e.amount) > 0
+    )
+  })
+
   const filteredEntries = entries.filter(e => {
     if (expenseFilter === 'fixed') return e.type === 'expense' && e.isFixed
     if (expenseFilter === 'variable') return e.type === 'expense' && !e.isFixed
@@ -407,6 +478,30 @@ export default function BudgetPage() {
                   className="text-xs h-7 px-2 text-gray-400">
                   닫기
                 </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 변동 반복 미입력 배너 */}
+      {pendingVariableTemplates.length > 0 && selectedTab !== 'transfer' && (
+        <Card className="border-blue-200 bg-blue-50/40">
+          <CardContent className="py-3 px-4">
+            <div className="flex items-start gap-2">
+              <RefreshCw size={14} className="text-blue-500 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-blue-700">
+                  이번 달 변동 지출 금액을 아직 입력하지 않았습니다 ({pendingVariableTemplates.length}건)
+                </p>
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {pendingVariableTemplates.map(t => (
+                    <span key={t.id} className="text-xs bg-white border border-blue-200 text-blue-600 px-2 py-0.5 rounded-full">
+                      {t.description}
+                      {t.estimatedAmount ? ` (예상 ${new Intl.NumberFormat('ko-KR').format(Number(t.estimatedAmount))}원)` : ''}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
           </CardContent>
@@ -605,6 +700,35 @@ export default function BudgetPage() {
               </button>
             </div>
 
+            {/* 반복 지출 템플릿 선택 (지출일 때만) */}
+            {type === 'expense' && recurringTemplatesList.filter(t => t.isActive).length > 0 && (
+              <div className="mb-3">
+                <select
+                  value={selectedTemplateId}
+                  onChange={e => {
+                    const tmplId = e.target.value
+                    setSelectedTemplateId(tmplId)
+                    if (tmplId) {
+                      const tmpl = recurringTemplatesList.find(t => t.id === tmplId)
+                      if (tmpl) {
+                        setCategory(tmpl.category)
+                        if (tmpl.paymentMethodId) setSelectedPaymentMethodId(tmpl.paymentMethodId)
+                        if (tmpl.amountType === 'fixed' && tmpl.fixedAmount) setAmount(tmpl.fixedAmount)
+                      }
+                    } else {
+                      setSelectedTemplateId('')
+                    }
+                  }}
+                  className="w-full text-sm border rounded px-2 py-1.5 bg-white text-gray-700"
+                >
+                  <option value="">반복 지출 선택 (선택사항)</option>
+                  {recurringTemplatesList.filter(t => t.isActive).map(t => (
+                    <option key={t.id} value={t.id}>{t.description}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* 고정/변동 토글 + 반복 체크박스 (지출일 때만) */}
             {type === 'expense' && (
               <div className="flex gap-2 mb-3 items-center">
@@ -663,6 +787,29 @@ export default function BudgetPage() {
                 {paymentMethodsList.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
             </div>
+            {/* 선입금 체크박스 */}
+            {(() => {
+              const selectedMethod = paymentMethodsList.find(m => m.id === selectedPaymentMethodId)
+              const hub = paymentMethodsList.find(m => m.isHub)
+              const showPrefund = type === 'expense' &&
+                selectedMethod &&
+                (selectedMethod.type === 'credit_card' || selectedMethod.type === 'debit_card') &&
+                selectedMethod.linkedBankId &&
+                hub
+              if (!showPrefund) return null
+              const bankName = paymentMethodsList.find(m => m.id === selectedMethod.linkedBankId)?.name ?? '결제 통장'
+              return (
+                <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer mb-2 pl-1">
+                  <input
+                    type="checkbox"
+                    checked={prefundTransfer}
+                    onChange={e => setPrefundTransfer(e.target.checked)}
+                    className="accent-blue-500 w-3.5 h-3.5"
+                  />
+                  <span>결제통장 선입금 — {bankName}으로 동일 금액 이체</span>
+                </label>
+              )
+            })()}
             {/* 2행: 날짜 + 추가 버튼 */}
             <div className="flex gap-2">
               <Input type="date" value={date} onChange={e => setDate(e.target.value)}
