@@ -2,6 +2,7 @@ import {
   pgTable, pgEnum, text, integer, boolean,
   decimal, timestamp,
 } from 'drizzle-orm/pg-core'
+import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
 
 export const userRoleEnum = pgEnum('user_role', ['husband', 'wife'])
@@ -10,6 +11,9 @@ export const txTypeEnum = pgEnum('tx_type', ['buy', 'sell', 'dividend', 'deposit
 export const incomeCatEnum = pgEnum('income_category', ['salary', 'bonus', 'dividend', 'rental', 'freelance', 'other'])
 export const expenseCatEnum = pgEnum('expense_category', ['food', 'transport', 'housing', 'medical', 'education', 'leisure', 'subscription', 'other'])
 export const reportTypeEnum = pgEnum('report_type', ['daily', 'weekly', 'monthly', 'on_demand'])
+export const paymentMethodTypeEnum = pgEnum('payment_method_type', ['credit_card', 'debit_card', 'bank'])
+export const ownerEnum = pgEnum('owner', ['husband', 'wife', 'joint'])
+export const transferTypeEnum = pgEnum('transfer_type', ['internal', 'external'])
 
 export const users = pgTable('users', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
@@ -65,6 +69,21 @@ export const realEstate = pgTable('real_estate', {
   propertyTax: decimal('property_tax', { precision: 18, scale: 0 }).default('0'),
 })
 
+export const paymentMethods = pgTable('payment_methods', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  type: paymentMethodTypeEnum('type').notNull(),
+  institution: text('institution').notNull(),
+  owner: ownerEnum('owner').notNull().default('husband'),
+  isShared: boolean('is_shared').notNull().default(false),
+  isHub: boolean('is_hub').notNull().default(false),
+  accountNumber: text('account_number'),
+  color: text('color'),
+  linkedBankId: text('linked_bank_id').references((): AnyPgColumn => paymentMethods.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
 export const income = pgTable('income', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -73,6 +92,7 @@ export const income = pgTable('income', {
   description: text('description'),
   date: timestamp('date').notNull(),
   isRecurring: boolean('is_recurring').default(false),
+  paymentMethodId: text('payment_method_id').references(() => paymentMethods.id),
 })
 
 export const expenses = pgTable('expenses', {
@@ -84,6 +104,9 @@ export const expenses = pgTable('expenses', {
   date: timestamp('date').notNull(),
   isFixed: boolean('is_fixed').default(false),
   isRecurring: boolean('is_recurring').default(false),
+  paymentMethodId: text('payment_method_id').references(() => paymentMethods.id),
+  transferType: transferTypeEnum('transfer_type'),
+  transferToId: text('transfer_to_id').references(() => paymentMethods.id),
 })
 
 export const budgets = pgTable('budgets', {
