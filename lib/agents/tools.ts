@@ -41,7 +41,7 @@ export const agentTools: Tool[] = [
   },
   {
     name: 'get_expense_items',
-    description: '특정 월의 지출 항목 목록을 조회한다. 개별 내역, 고정/변동 여부, 날짜 포함',
+    description: '특정 월의 지출 항목 목록을 조회한다. 결제수단별 필터 가능',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -49,6 +49,7 @@ export const agentTools: Tool[] = [
         month: { type: 'number', description: '월 (1-12)' },
         fixedOnly: { type: 'boolean', description: 'true면 고정지출만 조회' },
         category: { type: 'string', description: '카테고리 필터 (food/transport/housing/medical/education/leisure/subscription/other). 없으면 전체' },
+        paymentMethodId: { type: 'string', description: '결제수단 ID (선택). 이 값이 있으면 해당 카드/계좌 지출만 조회' },
       },
       required: ['year', 'month'],
     },
@@ -169,16 +170,19 @@ export async function executeToolCall(name: string, input: ToolInput, userId: st
   }
 
   if (name === 'get_expense_items') {
-    const { year, month, fixedOnly, category } = input as {
-      year: number; month: number; fixedOnly?: boolean; category?: string
+    const { year, month, fixedOnly, category, paymentMethodId } = input as {
+      year: number; month: number; fixedOnly?: boolean; category?: string; paymentMethodId?: string
     }
     const start = new Date(year, month - 1, 1)
     const end = new Date(year, month, 0)
     let rows = await db.select().from(expenses)
       .where(and(eq(expenses.userId, userId), gte(expenses.date, start), lte(expenses.date, end)))
       .orderBy(desc(expenses.date))
+    // Exclude transfers — they are not real expenses
+    rows = rows.filter(e => e.transferType === null)
     if (fixedOnly) rows = rows.filter(e => e.isFixed)
     if (category) rows = rows.filter(e => e.category === category)
+    if (paymentMethodId) rows = rows.filter(e => e.paymentMethodId === paymentMethodId)
     return JSON.stringify(rows.map(e => ({
       date: e.date.toISOString().split('T')[0],
       category: e.category,
