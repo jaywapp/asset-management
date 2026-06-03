@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Plus, Building2, Bot, RotateCcw, User } from 'lucide-react'
 import { PaymentMethodsTab } from '@/components/settings/PaymentMethodsTab'
 import { ConversationalImport } from '@/components/import/ConversationalImport'
+import { RecurringTemplatesTab } from '@/components/settings/RecurringTemplatesTab'
 
 const AGENT_LABELS: Record<string, string> = {
   cfo: 'CFO (총괄)',
@@ -168,7 +169,7 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-bold">설정</h1>
 
       <Tabs defaultValue="accounts">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="account">내 계정</TabsTrigger>
           <TabsTrigger value="accounts">계좌 관리</TabsTrigger>
           <TabsTrigger value="holdings">종목 추가</TabsTrigger>
@@ -176,6 +177,7 @@ export default function SettingsPage() {
           <TabsTrigger value="prompts">AI 지침</TabsTrigger>
           <TabsTrigger value="payment-methods">결제수단</TabsTrigger>
           <TabsTrigger value="import">가져오기</TabsTrigger>
+          <TabsTrigger value="recurring">반복 지출</TabsTrigger>
         </TabsList>
 
         <TabsContent value="account" className="mt-4 space-y-4">
@@ -392,6 +394,10 @@ export default function SettingsPage() {
 
         <TabsContent value="import" className="mt-4">
           <ConversationalImport paymentMethods={paymentMethodsList} />
+        </TabsContent>
+
+        <TabsContent value="recurring" className="mt-4">
+          <RecurringTemplatesTab paymentMethods={paymentMethodsList} />
         </TabsContent>
       </Tabs>
     </div>
