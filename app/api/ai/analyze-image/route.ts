@@ -9,13 +9,15 @@ const PROMPTS = {
 이미지에서 거래 내역을 추출하여 다음 JSON 형식으로 반환하세요. 반드시 JSON만 반환하고 다른 텍스트는 포함하지 마세요.
 
 {
+  "paymentMethod": "이미지에 표시된 카드명 또는 계좌명 (예: '삼성카드', '토스뱅크', '현대카드'). 확인 불가시 null",
   "entries": [
     {
       "type": "income" 또는 "expense",
       "amount": 숫자 (원화 기준),
       "description": "거래 설명",
       "category": "salary|bonus|dividend|rental|freelance|other|food|transport|housing|medical|education|leisure|subscription",
-      "date": "YYYY-MM-DD"
+      "date": "YYYY-MM-DD",
+      "confidence": "high" 또는 "low"
     }
   ]
 }
