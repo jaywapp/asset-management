@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { CashFlowChart } from '@/components/budget/CashFlowChart'
+import { PaymentMethodTabs } from '@/components/budget/PaymentMethodTabs'
+import { TransferSankey } from '@/components/budget/TransferSankey'
 import { TrendingUp, TrendingDown, Trash2, Camera, Pin, Pencil, X, Check, CheckSquare, RefreshCw } from 'lucide-react'
 import { ImageAnalyzer } from '@/components/ui/image-analyzer'
 
@@ -82,6 +84,12 @@ export default function BudgetPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<EditForm>({ category: '', amount: '', description: '', date: '', isFixed: false })
 
+  // 결제수단 탭
+  const [selectedTab, setSelectedTab] = useState<string | null>(null)
+  const [paymentMethodsList, setPaymentMethodsList] = useState<any[]>([])
+  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState('')
+  const [transferData, setTransferData] = useState<{ hub: any; flows: any[] } | null>(null)
+
   // 일괄 편집
   const [bulkMode, setBulkMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -97,9 +105,15 @@ export default function BudgetPage() {
   }
 
   async function load() {
+    if (selectedTab === 'transfer') {
+      const data = await fetch(`/api/budget/transfers?year=${year}&month=${month}`).then(r => r.json())
+      setTransferData(data)
+      return
+    }
+    const pmParam = selectedTab ? `&paymentMethodId=${selectedTab}` : ''
     const [inc, exp] = await Promise.all([
       fetch(`/api/income?year=${year}&month=${month}`).then(r => r.json()),
-      fetch(`/api/expenses?year=${year}&month=${month}`).then(r => r.json()),
+      fetch(`/api/expenses?year=${year}&month=${month}${pmParam}&transferType=none`).then(r => r.json()),
     ])
     const combined: Entry[] = [
       ...inc.map((i: any) => ({ ...i, type: 'income' as EntryType })),
@@ -125,7 +139,11 @@ export default function BudgetPage() {
 
   useEffect(() => {
     Promise.all([load(), loadCarryover(), checkRecurring()])
-  }, [year, month])
+  }, [year, month, selectedTab])
+
+  useEffect(() => {
+    fetch('/api/payment-methods').then(r => r.json()).then(setPaymentMethodsList)
+  }, [])
 
   useEffect(() => {
     setCategory(type === 'income' ? 'salary' : 'food')
@@ -142,8 +160,8 @@ export default function BudgetPage() {
     setSaving(true)
     const endpoint = type === 'income' ? '/api/income' : '/api/expenses'
     const body = type === 'income'
-      ? { category, amount, description, date }
-      : { category, amount, description, date, isFixed, isRecurring: isFixed && isRecurring }
+      ? { category, amount, description, date, paymentMethodId: selectedPaymentMethodId || undefined }
+      : { category, amount, description, date, isFixed, isRecurring: isFixed && isRecurring, paymentMethodId: selectedPaymentMethodId || undefined }
     await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -350,6 +368,13 @@ export default function BudgetPage() {
         </div>
       </div>
 
+      {/* 결제수단 탭 */}
+      <PaymentMethodTabs
+        methods={paymentMethodsList}
+        selected={selectedTab}
+        onChange={(id) => { setSelectedTab(id); setTransferData(null) }}
+      />
+
       {/* 반복 고정지출 배너 */}
       {pendingRecurring.length > 0 && (
         <Card className="border-orange-200 bg-orange-50/40">
@@ -462,6 +487,26 @@ export default function BudgetPage() {
               </Button>
               <Button size="sm" variant="ghost" onClick={() => { setPendingEntries([]); setPendingMeta([]) }}>취소</Button>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 이체 탭 */}
+      {selectedTab === 'transfer' && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              이체 흐름
+              {transferData?.hub && (
+                <span className="text-xs text-gray-400 font-normal">허브: {transferData.hub.name}</span>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TransferSankey
+              hubName={transferData?.hub?.name ?? '허브 계좌'}
+              flows={transferData?.flows ?? []}
+            />
           </CardContent>
         </Card>
       )}
@@ -606,6 +651,17 @@ export default function BudgetPage() {
                 onChange={e => setAmount(e.target.value)} className="flex-1 text-base" required />
               <Input placeholder="메모 (선택)" value={description}
                 onChange={e => setDescription(e.target.value)} className="flex-[2]" />
+            </div>
+            {/* 결제수단 선택 (선택사항) */}
+            <div className="flex gap-2 mb-2">
+              <select
+                value={selectedPaymentMethodId}
+                onChange={e => setSelectedPaymentMethodId(e.target.value)}
+                className="flex-1 text-sm border rounded px-2 py-1.5 bg-white text-gray-700"
+              >
+                <option value="">결제수단 (선택사항)</option>
+                {paymentMethodsList.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
             </div>
             {/* 2행: 날짜 + 추가 버튼 */}
             <div className="flex gap-2">
@@ -797,6 +853,11 @@ export default function BudgetPage() {
                             {entry.isRecurring && (
                               <span className="inline-flex items-center gap-0.5 text-xs text-orange-400 opacity-70">
                                 <RefreshCw size={9} />
+                              </span>
+                            )}
+                            {(entry as any).paymentMethodId && (
+                              <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
+                                {paymentMethodsList.find(m => m.id === (entry as any).paymentMethodId)?.name ?? ''}
                               </span>
                             )}
                             {entry.description && (
