@@ -7,6 +7,8 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Plus, Building2, Bot, RotateCcw, User } from 'lucide-react'
+import { PaymentMethodsTab } from '@/components/settings/PaymentMethodsTab'
+import { ConversationalImport } from '@/components/import/ConversationalImport'
 
 const AGENT_LABELS: Record<string, string> = {
   cfo: 'CFO (총괄)',
@@ -21,6 +23,7 @@ interface AgentPrompt { agentName: string; systemPrompt: string; isCustom: boole
 export default function SettingsPage() {
   const [accounts, setAccounts] = useState<any[]>([])
   const [accountForm, setAccountForm] = useState({ name: '', type: 'stock', institution: '' })
+  const [paymentMethodsList, setPaymentMethodsList] = useState<any[]>([])
   const [prompts, setPrompts] = useState<AgentPrompt[]>([])
   const [editingAgent, setEditingAgent] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
@@ -98,7 +101,12 @@ export default function SettingsPage() {
     if (res.ok) setPrompts(await res.json())
   }
 
-  useEffect(() => { loadAccounts(); loadPrompts(); loadAccountInfo() }, [])
+  useEffect(() => {
+    loadAccounts()
+    loadPrompts()
+    loadAccountInfo()
+    fetch('/api/payment-methods').then(r => r.json()).then(setPaymentMethodsList)
+  }, [])
 
   async function savePrompt(agentName: string) {
     setSavingPrompt(true)
@@ -160,12 +168,14 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-bold">설정</h1>
 
       <Tabs defaultValue="accounts">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="account">내 계정</TabsTrigger>
           <TabsTrigger value="accounts">계좌 관리</TabsTrigger>
           <TabsTrigger value="holdings">종목 추가</TabsTrigger>
           <TabsTrigger value="realestate">부동산</TabsTrigger>
           <TabsTrigger value="prompts">AI 지침</TabsTrigger>
+          <TabsTrigger value="payment-methods">결제수단</TabsTrigger>
+          <TabsTrigger value="import">가져오기</TabsTrigger>
         </TabsList>
 
         <TabsContent value="account" className="mt-4 space-y-4">
@@ -374,6 +384,14 @@ export default function SettingsPage() {
               )}
             </Card>
           ))}
+        </TabsContent>
+
+        <TabsContent value="payment-methods" className="mt-4">
+          <PaymentMethodsTab />
+        </TabsContent>
+
+        <TabsContent value="import" className="mt-4">
+          <ConversationalImport paymentMethods={paymentMethodsList} />
         </TabsContent>
       </Tabs>
     </div>
