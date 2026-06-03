@@ -35,6 +35,7 @@ export async function POST(req: Request) {
     description: body.description,
     date: new Date(body.date),
     isRecurring: body.isRecurring ?? false,
+    paymentMethodId: body.paymentMethodId ?? null,
   }).returning()
   return NextResponse.json(row, { status: 201 })
 }
