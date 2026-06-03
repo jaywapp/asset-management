@@ -60,6 +60,8 @@ interface EditForm {
   description: string
   date: string
   isFixed: boolean
+  transferType: 'internal' | null
+  transferToId: string
 }
 
 export default function BudgetPage() {
@@ -95,7 +97,7 @@ export default function BudgetPage() {
 
   // 개별 편집
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState<EditForm>({ category: '', amount: '', description: '', date: '', isFixed: false })
+  const [editForm, setEditForm] = useState<EditForm>({ category: '', amount: '', description: '', date: '', isFixed: false, transferType: null, transferToId: '' })
 
   // 결제수단 탭
   const [selectedTab, setSelectedTab] = useState<string | null>(null)
@@ -301,6 +303,8 @@ export default function BudgetPage() {
       description: entry.description ?? '',
       date: entry.date.split('T')[0],
       isFixed: entry.isFixed ?? false,
+      transferType: null,
+      transferToId: '',
     })
   }
 
@@ -309,7 +313,12 @@ export default function BudgetPage() {
     const endpoint = entry.type === 'income' ? `/api/income/${entry.id}` : `/api/expenses/${entry.id}`
     const body = entry.type === 'income'
       ? { category: editForm.category, amount: editForm.amount, description: editForm.description, date: editForm.date }
-      : { category: editForm.category, amount: editForm.amount, description: editForm.description, date: editForm.date, isFixed: editForm.isFixed }
+      : {
+          category: editForm.category, amount: editForm.amount, description: editForm.description, date: editForm.date, isFixed: editForm.isFixed,
+          ...(editForm.transferType === 'internal' && editForm.transferToId
+            ? { transferType: 'internal', transferToId: editForm.transferToId }
+            : {}),
+        }
     await fetch(endpoint, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -954,6 +963,35 @@ export default function BudgetPage() {
                               className={`px-2 py-0.5 rounded text-xs flex items-center gap-0.5 ${editForm.isFixed ? 'bg-orange-100 text-orange-700 border border-orange-300' : 'bg-gray-50 text-gray-400 border border-gray-200'}`}>
                               <Pin size={9} />고정
                             </button>
+                          </div>
+                        )}
+                        {!isIncome && (
+                          <div className="flex items-center gap-2">
+                            <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={editForm.transferType === 'internal'}
+                                onChange={e => setEditForm(f => ({
+                                  ...f,
+                                  transferType: e.target.checked ? 'internal' : null,
+                                  transferToId: e.target.checked ? f.transferToId : '',
+                                }))}
+                                className="accent-blue-500 w-3.5 h-3.5"
+                              />
+                              이체로 전환
+                            </label>
+                            {editForm.transferType === 'internal' && (
+                              <select
+                                value={editForm.transferToId}
+                                onChange={e => setEditForm(f => ({ ...f, transferToId: e.target.value }))}
+                                className="text-xs border rounded px-2 py-1 bg-white text-gray-700 h-7"
+                              >
+                                <option value="">이체 대상 선택</option>
+                                {paymentMethodsList.map(m => (
+                                  <option key={m.id} value={m.id}>{m.name}</option>
+                                ))}
+                              </select>
+                            )}
                           </div>
                         )}
                         <div className="flex gap-1.5">

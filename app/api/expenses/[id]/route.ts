@@ -15,6 +15,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (body.description !== undefined) update.description = body.description
   if (body.date !== undefined) update.date = new Date(body.date)
   if (body.isFixed !== undefined) update.isFixed = body.isFixed
+  if (body.transferType !== undefined) update.transferType = body.transferType
+  if (body.transferToId !== undefined) update.transferToId = body.transferToId
   const [row] = await db.update(expenses).set(update)
     .where(and(eq(expenses.id, id), eq(expenses.userId, session.user.id)))
     .returning()
