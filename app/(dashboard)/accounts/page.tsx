@@ -30,6 +30,78 @@ interface PaymentMethod {
   linkedBankId: string | null
 }
 
+interface MethodCardProps {
+  m: PaymentMethod
+  banks: PaymentMethod[]
+  onSetHub: (id: string) => void
+  onSetLinkedBank: (cardId: string, bankId: string | null) => void
+  onDelete: (id: string, name: string) => void
+}
+
+function MethodCard({ m, banks, onSetHub, onSetLinkedBank, onDelete }: MethodCardProps) {
+  const isCardType = m.type === 'credit_card' || m.type === 'debit_card'
+  const linkedBank = banks.find(b => b.id === m.linkedBankId)
+  return (
+    <div className="flex items-start justify-between border rounded-lg p-3 gap-2 bg-white">
+      <div className="flex items-start gap-3 min-w-0">
+        <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+          style={{ backgroundColor: (m.color ?? '#9ca3af') + '20' }}>
+          {isCardType
+            ? <CreditCard size={15} style={{ color: m.color ?? '#9ca3af' }} />
+            : <Building2 size={15} style={{ color: m.color ?? '#9ca3af' }} />
+          }
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="font-medium text-sm">{m.name}</span>
+            {m.isHub && (
+              <span className="inline-flex items-center gap-0.5 text-xs bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded-full">
+                <Star size={9} />허브
+              </span>
+            )}
+            <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+              {TYPE_LABELS[m.type] ?? m.type}
+            </span>
+            <span className="text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">
+              {OWNER_LABELS[m.owner] ?? m.owner}
+            </span>
+          </div>
+          <p className="text-xs text-gray-400 mt-0.5">{m.institution}</p>
+          {isCardType && (
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <Link2 size={11} className="text-gray-400 shrink-0" />
+              <select
+                value={m.linkedBankId ?? ''}
+                onChange={e => onSetLinkedBank(m.id, e.target.value || null)}
+                className="text-xs border rounded px-1.5 py-0.5 bg-white text-gray-600 h-6"
+              >
+                <option value="">결제 통장 미연결</option>
+                {banks.map(b => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+              {linkedBank && (
+                <span className="text-xs text-blue-500">→ {linkedBank.name}</span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="flex gap-1 shrink-0">
+        {!m.isHub && m.type === 'bank' && (
+          <Button size="sm" variant="outline" className="text-xs h-7 px-2" onClick={() => onSetHub(m.id)}>
+            <Star size={11} className="mr-1" />허브
+          </Button>
+        )}
+        <Button size="sm" variant="ghost" className="text-xs h-7 px-2 text-red-400 hover:text-red-600 hover:bg-red-50"
+          onClick={() => onDelete(m.id, m.name)}>
+          <Trash2 size={13} />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 const emptyForm = {
   name: '',
   type: 'bank' as PaymentMethod['type'],
@@ -37,7 +109,7 @@ const emptyForm = {
   owner: 'joint',
   isShared: true,
   color: '#3b82f6',
-  linkedBankId: '',
+  linkedBankId: 'none',
 }
 
 export default function AccountsPage() {
@@ -55,6 +127,7 @@ export default function AccountsPage() {
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
+    const isCard = form.type === 'credit_card' || form.type === 'debit_card'
     await fetch('/api/payment-methods', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -65,9 +138,7 @@ export default function AccountsPage() {
         owner: form.owner,
         isShared: form.isShared,
         color: form.color,
-        linkedBankId: (form.type === 'credit_card' || form.type === 'debit_card') && form.linkedBankId
-          ? form.linkedBankId
-          : null,
+        linkedBankId: isCard && form.linkedBankId !== 'none' ? form.linkedBankId : null,
       }),
     })
     setForm({ ...emptyForm })
@@ -88,7 +159,7 @@ export default function AccountsPage() {
     await fetch(`/api/payment-methods/${cardId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ linkedBankId: bankId || null }),
+      body: JSON.stringify({ linkedBankId: bankId }),
     })
     load()
   }
@@ -103,105 +174,43 @@ export default function AccountsPage() {
   const cards = methods.filter(m => m.type === 'credit_card' || m.type === 'debit_card')
   const isCard = form.type === 'credit_card' || form.type === 'debit_card'
 
-  function MethodCard({ m }: { m: PaymentMethod }) {
-    const isCardType = m.type === 'credit_card' || m.type === 'debit_card'
-    const linkedBank = banks.find(b => b.id === m.linkedBankId)
-    return (
-      <div className="flex items-start justify-between border rounded-lg p-3 gap-2 bg-white">
-        <div className="flex items-start gap-3 min-w-0">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5"
-            style={{ backgroundColor: (m.color ?? '#9ca3af') + '20' }}>
-            {isCardType
-              ? <CreditCard size={15} style={{ color: m.color ?? '#9ca3af' }} />
-              : <Building2 size={15} style={{ color: m.color ?? '#9ca3af' }} />
-            }
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="font-medium text-sm">{m.name}</span>
-              {m.isHub && (
-                <span className="inline-flex items-center gap-0.5 text-xs bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded-full">
-                  <Star size={9} />허브
-                </span>
-              )}
-              <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
-                {TYPE_LABELS[m.type] ?? m.type}
-              </span>
-              <span className="text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">
-                {OWNER_LABELS[m.owner] ?? m.owner}
-              </span>
-            </div>
-            <p className="text-xs text-gray-400 mt-0.5">{m.institution}</p>
-            {isCardType && (
-              <div className="mt-1.5 flex items-center gap-1.5">
-                <Link2 size={11} className="text-gray-400 shrink-0" />
-                <select
-                  value={m.linkedBankId ?? ''}
-                  onChange={e => setLinkedBank(m.id, e.target.value)}
-                  className="text-xs border rounded px-1.5 py-0.5 bg-white text-gray-600 h-6"
-                >
-                  <option value="">결제 통장 미연결</option>
-                  {banks.map(b => (
-                    <option key={b.id} value={b.id}>{b.name}</option>
-                  ))}
-                </select>
-                {linkedBank && (
-                  <span className="text-xs text-blue-500">→ {linkedBank.name}</span>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="flex gap-1 shrink-0">
-          {!m.isHub && m.type === 'bank' && (
-            <Button size="sm" variant="outline" className="text-xs h-7 px-2" onClick={() => setHub(m.id)}>
-              <Star size={11} className="mr-1" />허브
-            </Button>
-          )}
-          <Button size="sm" variant="ghost" className="text-xs h-7 px-2 text-red-400 hover:text-red-600 hover:bg-red-50"
-            onClick={() => handleDelete(m.id, m.name)}>
-            <Trash2 size={13} />
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-5 max-w-2xl">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">계좌·카드 관리</h1>
       </div>
 
-      {/* 안내 배너 */}
       <div className="flex items-start gap-2 text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
         <Info size={15} className="shrink-0 mt-0.5" />
         <span>계좌 간 이체는 지출로 집계되지 않습니다. 카드에 결제 통장을 연결하면 선입금 이체 기능을 사용할 수 있습니다.</span>
       </div>
 
-      {/* 은행 계좌 */}
       <div className="space-y-2">
         <h2 className="text-sm font-semibold text-gray-500 flex items-center gap-1.5">
           <Building2 size={14} />은행 계좌 ({banks.length})
         </h2>
         {banks.length === 0
           ? <p className="text-sm text-gray-400 py-2">등록된 계좌가 없습니다.</p>
-          : <div className="grid gap-2">{banks.map(m => <MethodCard key={m.id} m={m} />)}</div>
+          : <div className="grid gap-2">{banks.map(m => (
+              <MethodCard key={m.id} m={m} banks={banks}
+                onSetHub={setHub} onSetLinkedBank={setLinkedBank} onDelete={handleDelete} />
+            ))}</div>
         }
       </div>
 
-      {/* 카드 */}
       <div className="space-y-2">
         <h2 className="text-sm font-semibold text-gray-500 flex items-center gap-1.5">
           <CreditCard size={14} />카드 ({cards.length})
         </h2>
         {cards.length === 0
           ? <p className="text-sm text-gray-400 py-2">등록된 카드가 없습니다.</p>
-          : <div className="grid gap-2">{cards.map(m => <MethodCard key={m.id} m={m} />)}</div>
+          : <div className="grid gap-2">{cards.map(m => (
+              <MethodCard key={m.id} m={m} banks={banks}
+                onSetHub={setHub} onSetLinkedBank={setLinkedBank} onDelete={handleDelete} />
+            ))}</div>
         }
       </div>
 
-      {/* 추가 폼 */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">계좌·카드 추가</CardTitle>
@@ -220,7 +229,7 @@ export default function AccountsPage() {
             </div>
             <div>
               <Label>종류</Label>
-              <Select value={form.type} onValueChange={v => setForm(p => ({ ...p, type: v as PaymentMethod['type'], linkedBankId: '' }))}>
+              <Select value={form.type} onValueChange={v => setForm(p => ({ ...p, type: v as PaymentMethod['type'], linkedBankId: 'none' }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="bank">은행 계좌</SelectItem>
@@ -246,7 +255,7 @@ export default function AccountsPage() {
                 <Select value={form.linkedBankId} onValueChange={v => setForm(p => ({ ...p, linkedBankId: v }))}>
                   <SelectTrigger><SelectValue placeholder="나중에 연결해도 됩니다" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">연결 안 함</SelectItem>
+                    <SelectItem value="none">연결 안 함</SelectItem>
                     {banks.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
