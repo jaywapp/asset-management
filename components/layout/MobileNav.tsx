@@ -7,6 +7,7 @@ import { LayoutDashboard, TrendingUp, Building2, Wallet, Bot, CreditCard } from 
 const navItems = [
   { href: '/dashboard', label: '홈', icon: LayoutDashboard },
   { href: '/portfolio', label: '포트폴리오', icon: TrendingUp },
+  { href: '/real-estate', label: '부동산', icon: Building2 },
   { href: '/budget', label: '가계부', icon: Wallet },
   { href: '/accounts', label: '계좌·카드', icon: CreditCard },
   { href: '/ai-team', label: 'AI팀', icon: Bot },
