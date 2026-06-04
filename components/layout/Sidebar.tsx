@@ -5,7 +5,7 @@ import { signOut } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 import {
   LayoutDashboard, TrendingUp, Building2,
-  Wallet, Bot, Settings, LogOut
+  Wallet, Bot, Settings, LogOut, CreditCard
 } from 'lucide-react'
 
 const navItems = [
@@ -13,6 +13,7 @@ const navItems = [
   { href: '/portfolio', label: '포트폴리오', icon: TrendingUp },
   { href: '/real-estate', label: '부동산', icon: Building2 },
   { href: '/budget', label: '재무흐름', icon: Wallet },
+  { href: '/accounts', label: '계좌·카드', icon: CreditCard },
   { href: '/ai-team', label: 'AI 팀', icon: Bot },
   { href: '/settings', label: '설정', icon: Settings },
 ]
