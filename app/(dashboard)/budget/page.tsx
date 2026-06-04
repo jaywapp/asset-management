@@ -34,6 +34,8 @@ interface Entry {
   isRecurring?: boolean
   paymentMethodId?: string | null
   recurringTemplateId?: string | null
+  transferType?: string | null
+  transferToId?: string | null
 }
 
 interface RecurringTemplate {
@@ -61,6 +63,7 @@ interface EditForm {
   date: string
   isFixed: boolean
   transferType: 'internal' | null
+  transferFromId: string
   transferToId: string
 }
 
@@ -97,7 +100,8 @@ export default function BudgetPage() {
 
   // 개별 편집
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState<EditForm>({ category: '', amount: '', description: '', date: '', isFixed: false, transferType: null, transferToId: '' })
+  const [editForm, setEditForm] = useState<EditForm>({ category: '', amount: '', description: '', date: '', isFixed: false, transferType: null, transferFromId: '', transferToId: '' })
+  const [transferEntries, setTransferEntries] = useState<Entry[]>([])
 
   // 결제수단 탭
   const [selectedTab, setSelectedTab] = useState<string | null>(null)
@@ -126,8 +130,12 @@ export default function BudgetPage() {
 
   async function load() {
     if (selectedTab === 'transfer') {
-      const data = await fetch(`/api/budget/transfers?year=${year}&month=${month}`).then(r => r.json())
-      setTransferData(data)
+      const [sankeyData, transferRows] = await Promise.all([
+        fetch(`/api/budget/transfers?year=${year}&month=${month}`).then(r => r.json()),
+        fetch(`/api/expenses?year=${year}&month=${month}&transferType=internal`).then(r => r.json()),
+      ])
+      setTransferData(sankeyData)
+      setTransferEntries(transferRows.map((e: any) => ({ ...e, type: 'expense' as EntryType })))
       return
     }
     const pmParam = selectedTab ? `&paymentMethodId=${selectedTab}` : ''
@@ -297,14 +305,16 @@ export default function BudgetPage() {
 
   function startEdit(entry: Entry) {
     setEditingId(entry.id)
+    const isTransfer = entry.transferType === 'internal'
     setEditForm({
       category: entry.category,
       amount: String(entry.amount),
       description: entry.description ?? '',
       date: entry.date.split('T')[0],
       isFixed: entry.isFixed ?? false,
-      transferType: null,
-      transferToId: '',
+      transferType: isTransfer ? 'internal' : null,
+      transferFromId: entry.paymentMethodId ?? '',
+      transferToId: entry.transferToId ?? '',
     })
   }
 
@@ -316,8 +326,12 @@ export default function BudgetPage() {
       : {
           category: editForm.category, amount: editForm.amount, description: editForm.description, date: editForm.date, isFixed: editForm.isFixed,
           ...(editForm.transferType === 'internal' && editForm.transferToId
-            ? { transferType: 'internal', transferToId: editForm.transferToId }
-            : {}),
+            ? {
+                transferType: 'internal',
+                transferToId: editForm.transferToId,
+                paymentMethodId: editForm.transferFromId || undefined,
+              }
+            : { transferType: null, transferToId: null }),
         }
     await fetch(endpoint, {
       method: 'PATCH',
@@ -597,22 +611,116 @@ export default function BudgetPage() {
 
       {/* 이체 탭 */}
       {selectedTab === 'transfer' && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              이체 흐름
-              {transferData?.hub && (
-                <span className="text-xs text-gray-400 font-normal">허브: {transferData.hub.name}</span>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <TransferSankey
-              hubName={transferData?.hub?.name ?? '허브 계좌'}
-              flows={transferData?.flows ?? []}
-            />
-          </CardContent>
-        </Card>
+        <>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                이체 흐름
+                {transferData?.hub && (
+                  <span className="text-xs text-gray-400 font-normal">허브: {transferData.hub.name}</span>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <TransferSankey
+                hubName={transferData?.hub?.name ?? '허브 계좌'}
+                flows={transferData?.flows ?? []}
+              />
+            </CardContent>
+          </Card>
+
+          {transferEntries.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">{month}월 이체 내역 ({transferEntries.length}건)</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4">
+                <div className="space-y-0">
+                  {transferEntries.map(entry => {
+                    const fromMethod = paymentMethodsList.find(m => m.id === entry.paymentMethodId)
+                    const toMethod = paymentMethodsList.find(m => m.id === entry.transferToId)
+                    const isEditing = editingId === entry.id
+                    return (
+                      <div key={entry.id}>
+                        {isEditing ? (
+                          <div className="py-2 space-y-2">
+                            <div className="space-y-1.5">
+                              <div className="flex items-center gap-1.5">
+                                <select
+                                  value={editForm.transferFromId}
+                                  onChange={e => setEditForm(f => ({ ...f, transferFromId: e.target.value }))}
+                                  className="text-xs border rounded px-2 py-1 bg-white text-gray-700 h-7 flex-1"
+                                >
+                                  <option value="">보내는 계좌</option>
+                                  {paymentMethodsList.map(m => (
+                                    <option key={m.id} value={m.id}>{m.name}</option>
+                                  ))}
+                                </select>
+                                <span className="text-xs text-gray-400">→</span>
+                                <select
+                                  value={editForm.transferToId}
+                                  onChange={e => setEditForm(f => ({ ...f, transferToId: e.target.value }))}
+                                  className="text-xs border rounded px-2 py-1 bg-white text-gray-700 h-7 flex-1"
+                                >
+                                  <option value="">받는 계좌</option>
+                                  {paymentMethodsList.map(m => (
+                                    <option key={m.id} value={m.id}>{m.name}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                            <div className="flex gap-1.5">
+                              <Input type="number" value={editForm.amount}
+                                onChange={e => setEditForm(f => ({ ...f, amount: e.target.value }))}
+                                className="w-28 h-8 text-sm" placeholder="금액" />
+                              <Input value={editForm.description}
+                                onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                                className="flex-1 h-8 text-sm" placeholder="메모" />
+                              <Input type="date" value={editForm.date}
+                                onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))}
+                                className="w-32 h-8 text-sm" />
+                              <button onClick={() => saveEdit(entry)}
+                                className="p-1.5 rounded bg-blue-500 text-white hover:bg-blue-600">
+                                <Check size={14} />
+                              </button>
+                              <button onClick={() => setEditingId(null)}
+                                className="p-1.5 rounded bg-gray-100 text-gray-500 hover:bg-gray-200">
+                                <X size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between py-2.5 group border-b last:border-0">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
+                              <span className="text-sm text-gray-700">
+                                {fromMethod?.name ?? '?'} → {toMethod?.name ?? '?'}
+                              </span>
+                              {entry.description && (
+                                <span className="text-xs text-gray-400 truncate">{entry.description}</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-blue-600">{fmt(Number(entry.amount))}</span>
+                              <button onClick={() => startEdit(entry)}
+                                className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-blue-400 transition-opacity">
+                                <Pencil size={13} />
+                              </button>
+                              <button onClick={() => handleDelete(entry)}
+                                className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-opacity">
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
 
       {/* 요약 카드 — 2행 레이아웃 */}
@@ -966,7 +1074,7 @@ export default function BudgetPage() {
                           </div>
                         )}
                         {!isIncome && (
-                          <div className="flex items-center gap-2">
+                          <div className="space-y-1.5">
                             <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
                               <input
                                 type="checkbox"
@@ -974,23 +1082,37 @@ export default function BudgetPage() {
                                 onChange={e => setEditForm(f => ({
                                   ...f,
                                   transferType: e.target.checked ? 'internal' : null,
+                                  transferFromId: e.target.checked ? f.transferFromId : '',
                                   transferToId: e.target.checked ? f.transferToId : '',
                                 }))}
                                 className="accent-blue-500 w-3.5 h-3.5"
                               />
-                              이체로 전환
+                              이체 항목으로 처리 (지출 합계 제외)
                             </label>
                             {editForm.transferType === 'internal' && (
-                              <select
-                                value={editForm.transferToId}
-                                onChange={e => setEditForm(f => ({ ...f, transferToId: e.target.value }))}
-                                className="text-xs border rounded px-2 py-1 bg-white text-gray-700 h-7"
-                              >
-                                <option value="">이체 대상 선택</option>
-                                {paymentMethodsList.map(m => (
-                                  <option key={m.id} value={m.id}>{m.name}</option>
-                                ))}
-                              </select>
+                              <div className="flex items-center gap-1.5 pl-5">
+                                <select
+                                  value={editForm.transferFromId}
+                                  onChange={e => setEditForm(f => ({ ...f, transferFromId: e.target.value }))}
+                                  className="text-xs border rounded px-2 py-1 bg-white text-gray-700 h-7 flex-1"
+                                >
+                                  <option value="">보내는 계좌</option>
+                                  {paymentMethodsList.map(m => (
+                                    <option key={m.id} value={m.id}>{m.name}</option>
+                                  ))}
+                                </select>
+                                <span className="text-xs text-gray-400">→</span>
+                                <select
+                                  value={editForm.transferToId}
+                                  onChange={e => setEditForm(f => ({ ...f, transferToId: e.target.value }))}
+                                  className="text-xs border rounded px-2 py-1 bg-white text-gray-700 h-7 flex-1"
+                                >
+                                  <option value="">받는 계좌</option>
+                                  {paymentMethodsList.map(m => (
+                                    <option key={m.id} value={m.id}>{m.name}</option>
+                                  ))}
+                                </select>
+                              </div>
                             )}
                           </div>
                         )}
