@@ -17,7 +17,13 @@ interface Holding {
   id: string; ticker: string; name: string
   quantity: string; avgPrice: string; currentPrice: string; accountId: string
 }
-interface Account { id: string; name: string; type: string }
+interface Account {
+  id: string
+  name: string
+  type: string
+  currency: string
+  exchangeRateToKrw: string
+}
 
 const ACCOUNT_TYPES: Record<string, string> = {
   stock: '주식', fund: '펀드', deposit: '예금/적금', crypto: '가상화폐', saving: '저축',
@@ -33,7 +39,9 @@ export default function PortfolioPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [refreshMsg, setRefreshMsg] = useState('')
 
-  const [accountForm, setAccountForm] = useState({ name: '', type: 'stock', institution: '' })
+  const [accountForm, setAccountForm] = useState({
+    name: '', type: 'stock', institution: '', currency: 'KRW', exchangeRateToKrw: '1',
+  })
   const [holdingForm, setHoldingForm] = useState({
     accountId: '', ticker: '', name: '', quantity: '', avgPrice: '', currentPrice: '',
   })
@@ -47,7 +55,10 @@ export default function PortfolioPage() {
     setAccounts(a)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    const timer = window.setTimeout(() => void load(), 0)
+    return () => window.clearTimeout(timer)
+  }, [])
 
   async function addAccount(e: React.FormEvent) {
     e.preventDefault()
@@ -55,7 +66,7 @@ export default function PortfolioPage() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(accountForm),
     })
-    setAccountForm({ name: '', type: 'stock', institution: '' })
+    setAccountForm({ name: '', type: 'stock', institution: '', currency: 'KRW', exchangeRateToKrw: '1' })
     setShowForm(null)
     await load()
   }
@@ -255,6 +266,14 @@ export default function PortfolioPage() {
               <div><Label>금융기관</Label>
                 <Input value={accountForm.institution} onChange={e => setAccountForm(p => ({ ...p, institution: e.target.value }))}
                   placeholder="예: 삼성증권" />
+              </div>
+              <div><Label>통화</Label>
+                <Input value={accountForm.currency} maxLength={3}
+                  onChange={e => setAccountForm(p => ({ ...p, currency: e.target.value.toUpperCase() }))} />
+              </div>
+              <div><Label>원화 환율</Label>
+                <Input type="number" min="0.000001" step="0.000001" value={accountForm.exchangeRateToKrw}
+                  onChange={e => setAccountForm(p => ({ ...p, exchangeRateToKrw: e.target.value }))} />
               </div>
               <div className="sm:col-span-3"><Button type="submit" size="sm">추가</Button></div>
             </form>

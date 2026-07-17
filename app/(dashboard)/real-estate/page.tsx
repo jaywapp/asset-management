@@ -29,7 +29,10 @@ export default function RealEstatePage() {
     if (res.ok) setProperties(await res.json())
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    const timer = window.setTimeout(() => void load(), 0)
+    return () => window.clearTimeout(timer)
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -117,7 +120,7 @@ export default function RealEstatePage() {
           {properties.map(p => {
             const gain = Number(p.currentValue) - Number(p.purchasePrice)
             const gainPct = Number(p.purchasePrice) > 0 ? (gain / Number(p.purchasePrice)) * 100 : 0
-            const yearsHeld = (Date.now() - new Date(p.purchaseDate).getTime()) / (1000 * 60 * 60 * 24 * 365)
+            const yearsHeld = (new Date().getFullYear() - new Date(p.purchaseDate).getFullYear())
             const annualYield = Number(p.currentValue) > 0
               ? (Number(p.monthlyRentalIncome) * 12 / Number(p.currentValue)) * 100 : 0
 

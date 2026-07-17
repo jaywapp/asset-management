@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { CreditCard, Building2, Trash2, Star, Link2, Info } from 'lucide-react'
+import { BankBalanceEditor, type BankFinancials } from '@/components/accounts/BankBalanceEditor'
+import { LiabilitiesSection } from '@/components/accounts/LiabilitiesSection'
 
 const TYPE_LABELS: Record<string, string> = {
   credit_card: '신용카드',
@@ -28,6 +30,10 @@ interface PaymentMethod {
   isShared: boolean
   color: string | null
   linkedBankId: string | null
+  balance: string
+  currency: string
+  exchangeRateToKrw: string
+  includeInNetWorth: boolean
 }
 
 interface MethodCardProps {
@@ -36,9 +42,10 @@ interface MethodCardProps {
   onSetHub: (id: string) => void
   onSetLinkedBank: (cardId: string, bankId: string | null) => void
   onDelete: (id: string, name: string) => void
+  onFinancialsSaved: (id: string, values: BankFinancials) => void
 }
 
-function MethodCard({ m, banks, onSetHub, onSetLinkedBank, onDelete }: MethodCardProps) {
+function MethodCard({ m, banks, onSetHub, onSetLinkedBank, onDelete, onFinancialsSaved }: MethodCardProps) {
   const isCardType = m.type === 'credit_card' || m.type === 'debit_card'
   const linkedBank = banks.find(b => b.id === m.linkedBankId)
   return (
@@ -85,6 +92,16 @@ function MethodCard({ m, banks, onSetHub, onSetLinkedBank, onDelete }: MethodCar
               )}
             </div>
           )}
+          {m.type === 'bank' && (
+            <BankBalanceEditor
+              paymentMethodId={m.id}
+              balance={m.balance}
+              currency={m.currency}
+              exchangeRateToKrw={m.exchangeRateToKrw}
+              includeInNetWorth={m.includeInNetWorth}
+              onSaved={(values) => onFinancialsSaved(m.id, values)}
+            />
+          )}
         </div>
       </div>
       <div className="flex gap-1 shrink-0">
@@ -110,25 +127,38 @@ const emptyForm = {
   isShared: true,
   color: '#3b82f6',
   linkedBankId: 'none',
+  balance: '',
+  currency: 'KRW',
+  exchangeRateToKrw: '1',
+  includeInNetWorth: true,
 }
 
 export default function AccountsPage() {
   const [methods, setMethods] = useState<PaymentMethod[]>([])
   const [form, setForm] = useState({ ...emptyForm })
   const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState('')
 
   async function load() {
     const res = await fetch('/api/payment-methods')
     if (res.ok) setMethods(await res.json())
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    const controller = new AbortController()
+    void fetch('/api/payment-methods', { signal: controller.signal })
+      .then((response) => response.ok ? response.json() as Promise<PaymentMethod[]> : Promise.reject())
+      .then(setMethods)
+      .catch(() => { if (!controller.signal.aborted) setMessage('계좌 정보를 불러오지 못했습니다.') })
+    return () => controller.abort()
+  }, [])
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
     const isCard = form.type === 'credit_card' || form.type === 'debit_card'
-    await fetch('/api/payment-methods', {
+    setMessage('')
+    const response = await fetch('/api/payment-methods', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -139,11 +169,21 @@ export default function AccountsPage() {
         isShared: form.isShared,
         color: form.color,
         linkedBankId: isCard && form.linkedBankId !== 'none' ? form.linkedBankId : null,
+        balance: form.balance || '0',
+        currency: form.currency,
+        exchangeRateToKrw: form.exchangeRateToKrw,
+        includeInNetWorth: form.includeInNetWorth,
       }),
     })
+    if (!response.ok) {
+      setSaving(false)
+      setMessage('입력값을 확인해 주세요.')
+      return
+    }
     setForm({ ...emptyForm })
     await load()
     setSaving(false)
+    setMessage('계좌 또는 카드를 추가했습니다.')
   }
 
   async function setHub(id: string) {
@@ -170,6 +210,10 @@ export default function AccountsPage() {
     load()
   }
 
+  function updateFinancials(id: string, values: BankFinancials) {
+    setMethods((current) => current.map((method) => method.id === id ? { ...method, ...values } : method))
+  }
+
   const banks = methods.filter(m => m.type === 'bank')
   const cards = methods.filter(m => m.type === 'credit_card' || m.type === 'debit_card')
   const isCard = form.type === 'credit_card' || form.type === 'debit_card'
@@ -193,7 +237,8 @@ export default function AccountsPage() {
           ? <p className="text-sm text-gray-400 py-2">등록된 계좌가 없습니다.</p>
           : <div className="grid gap-2">{banks.map(m => (
               <MethodCard key={m.id} m={m} banks={banks}
-                onSetHub={setHub} onSetLinkedBank={setLinkedBank} onDelete={handleDelete} />
+                onSetHub={setHub} onSetLinkedBank={setLinkedBank} onDelete={handleDelete}
+                onFinancialsSaved={updateFinancials} />
             ))}</div>
         }
       </div>
@@ -206,7 +251,8 @@ export default function AccountsPage() {
           ? <p className="text-sm text-gray-400 py-2">등록된 카드가 없습니다.</p>
           : <div className="grid gap-2">{cards.map(m => (
               <MethodCard key={m.id} m={m} banks={banks}
-                onSetHub={setHub} onSetLinkedBank={setLinkedBank} onDelete={handleDelete} />
+                onSetHub={setHub} onSetLinkedBank={setLinkedBank} onDelete={handleDelete}
+                onFinancialsSaved={updateFinancials} />
             ))}</div>
         }
       </div>
@@ -261,6 +307,30 @@ export default function AccountsPage() {
                 </Select>
               </div>
             )}
+            {!isCard && (
+              <>
+                <div>
+                  <Label>현재 잔액</Label>
+                  <Input type="number" min="0" step="0.01" value={form.balance}
+                    onChange={e => setForm(p => ({ ...p, balance: e.target.value }))} placeholder="0" />
+                </div>
+                <div>
+                  <Label>통화</Label>
+                  <Input maxLength={3} value={form.currency}
+                    onChange={e => setForm(p => ({ ...p, currency: e.target.value.toUpperCase() }))} />
+                </div>
+                <div>
+                  <Label>원화 환율</Label>
+                  <Input type="number" min="0.000001" step="0.000001" value={form.exchangeRateToKrw}
+                    onChange={e => setForm(p => ({ ...p, exchangeRateToKrw: e.target.value }))} />
+                </div>
+                <label className="flex items-end gap-2 pb-2 text-sm text-gray-600">
+                  <input type="checkbox" checked={form.includeInNetWorth}
+                    onChange={e => setForm(p => ({ ...p, includeInNetWorth: e.target.checked }))} />
+                  순자산에 포함
+                </label>
+              </>
+            )}
             <div className="flex items-end gap-3">
               <div className="flex-1">
                 <Label>색상</Label>
@@ -274,8 +344,11 @@ export default function AccountsPage() {
               </Button>
             </div>
           </form>
+          {message && <p className="mt-3 text-sm text-gray-500" role="status">{message}</p>}
         </CardContent>
       </Card>
+
+      <LiabilitiesSection />
     </div>
   )
 }

@@ -15,6 +15,7 @@ export const paymentMethodTypeEnum = pgEnum('payment_method_type', ['credit_card
 export const ownerEnum = pgEnum('owner', ['husband', 'wife', 'joint'])
 export const transferTypeEnum = pgEnum('transfer_type', ['internal', 'external'])
 export const recurringAmountTypeEnum = pgEnum('recurring_amount_type', ['fixed', 'variable'])
+export const liabilityTypeEnum = pgEnum('liability_type', ['mortgage', 'credit_loan', 'lease_loan', 'card', 'other'])
 
 export const users = pgTable('users', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
@@ -32,6 +33,7 @@ export const accounts = pgTable('accounts', {
   type: accountTypeEnum('type').notNull(),
   institution: text('institution'),
   currency: text('currency').notNull().default('KRW'),
+  exchangeRateToKrw: decimal('exchange_rate_to_krw', { precision: 18, scale: 6 }).notNull().default('1'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
@@ -82,6 +84,25 @@ export const paymentMethods = pgTable('payment_methods', {
   accountNumber: text('account_number'),
   color: text('color'),
   linkedBankId: text('linked_bank_id').references((): AnyPgColumn => paymentMethods.id, { onDelete: 'set null' }),
+  balance: decimal('balance', { precision: 18, scale: 2 }).notNull().default('0'),
+  currency: text('currency').notNull().default('KRW'),
+  exchangeRateToKrw: decimal('exchange_rate_to_krw', { precision: 18, scale: 6 }).notNull().default('1'),
+  includeInNetWorth: boolean('include_in_net_worth').notNull().default(true),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+export const liabilities = pgTable('liabilities', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  type: liabilityTypeEnum('type').notNull(),
+  institution: text('institution'),
+  balance: decimal('balance', { precision: 18, scale: 2 }).notNull(),
+  currency: text('currency').notNull().default('KRW'),
+  exchangeRateToKrw: decimal('exchange_rate_to_krw', { precision: 18, scale: 6 }).notNull().default('1'),
+  interestRate: decimal('interest_rate', { precision: 7, scale: 4 }),
+  monthlyPayment: decimal('monthly_payment', { precision: 18, scale: 2 }),
+  maturityDate: timestamp('maturity_date'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 

@@ -1,8 +1,10 @@
 'use client'
-import type { InferSelectModel } from 'drizzle-orm'
-import type { paymentMethods } from '@/lib/db/schema'
 
-type PaymentMethod = InferSelectModel<typeof paymentMethods>
+interface PaymentMethod {
+  id: string
+  name: string
+  color: string | null
+}
 
 interface Props {
   methods: PaymentMethod[]

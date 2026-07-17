@@ -2,18 +2,20 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { realEstate } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
+import { getFamilyUserIds } from '@/lib/family'
 
 export async function GET() {
   const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const rows = await db.select().from(realEstate).where(eq(realEstate.userId, session.user.id))
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const familyUserIds = await getFamilyUserIds(session.user.id)
+  const rows = await db.select().from(realEstate).where(inArray(realEstate.userId, familyUserIds))
   return NextResponse.json(rows)
 }
 
 export async function POST(req: Request) {
   const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await req.json()
   const [row] = await db.insert(realEstate).values({
     userId: session.user.id,
@@ -30,11 +32,13 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await req.json()
+  const familyUserIds = await getFamilyUserIds(session.user.id)
   const [row] = await db.update(realEstate)
     .set({ currentValue: body.currentValue })
-    .where(eq(realEstate.id, body.id))
+    .where(and(eq(realEstate.id, body.id), inArray(realEstate.userId, familyUserIds)))
     .returning()
+  if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json(row)
 }

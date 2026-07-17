@@ -25,7 +25,13 @@ export function StockSearch({ onSelect, placeholder = '종목명 또는 티커 �
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    if (!query.trim()) { setResults([]); setOpen(false); return }
+    if (!query.trim()) {
+      debounceRef.current = setTimeout(() => {
+        setResults([])
+        setOpen(false)
+      }, 0)
+      return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+    }
 
     debounceRef.current = setTimeout(async () => {
       setLoading(true)
@@ -38,6 +44,7 @@ export function StockSearch({ onSelect, placeholder = '종목명 또는 티커 �
         setLoading(false)
       }
     }, 300)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [query])
 
   // 외부 클릭 시 드롭다운 닫기

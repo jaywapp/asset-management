@@ -1,6 +1,5 @@
 'use client'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { formatKRW } from '@/lib/utils'
 import { isDomestic, getExchangeLabel } from '@/lib/stock-utils'
 
 interface Holding {

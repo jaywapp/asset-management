@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { holdings, accounts } from '@/lib/db/schema'
 import { eq, inArray } from 'drizzle-orm'
 import { isDomestic, toNaverCode } from '@/lib/stock-utils'
+import { getFamilyUserIds } from '@/lib/family'
 
 async function fetchNaverPrice(code: string): Promise<number | null> {
   try {
@@ -43,10 +44,11 @@ async function fetchYahooPrice(symbol: string): Promise<number | null> {
 
 export async function POST() {
   const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const familyUserIds = await getFamilyUserIds(session.user.id)
   const userAccounts = await db.select({ id: accounts.id })
-    .from(accounts).where(eq(accounts.userId, session.user.id))
+    .from(accounts).where(inArray(accounts.userId, familyUserIds))
   const accountIds = userAccounts.map(a => a.id)
   if (!accountIds.length) return NextResponse.json({ updated: 0, total: 0 })
 

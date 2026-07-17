@@ -13,8 +13,16 @@ const AGENTS = [
   { key: 'budget', label: '가계부 결산' },
 ]
 
+interface AgentReport {
+  id: string
+  agent: string
+  type: string
+  content: string
+  createdAt: string
+}
+
 export default function AITeamPage() {
-  const [reports, setReports] = useState<any[]>([])
+  const [reports, setReports] = useState<AgentReport[]>([])
   const [generating, setGenerating] = useState<string | null>(null)
 
   async function loadReports() {
@@ -36,7 +44,10 @@ export default function AITeamPage() {
     }
   }
 
-  useEffect(() => { loadReports() }, [])
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadReports(), 0)
+    return () => window.clearTimeout(timer)
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -71,7 +82,7 @@ export default function AITeamPage() {
               <p className="text-xs mt-1">위 버튼으로 AI 에이전트 분석을 시작하세요.</p>
             </div>
           ) : (
-            reports.map((r: any) => <ReportCard key={r.id} {...r} />)
+            reports.map((report) => <ReportCard key={report.id} {...report} />)
           )}
         </TabsContent>
       </Tabs>

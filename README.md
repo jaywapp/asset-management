@@ -7,7 +7,8 @@
 ## 주요 기능
 
 ### 대시보드
-- 전체 순자산(금융 + 부동산) 요약 및 월별 현금흐름 브리핑
+- 부부 등록 자산(금융 + 부동산) 합산 및 월별 현금흐름 브리핑
+- 내부이체를 제외한 실지출·순저축 집계
 - 페이지 전환 진행 바, 사이드바 내비게이션
 
 ### 포트폴리오 관리
@@ -66,6 +67,13 @@ DATABASE_URL=       # Neon PostgreSQL 연결 문자열
 AUTH_SECRET=        # NextAuth 서명 시크릿
 ANTHROPIC_API_KEY=  # Claude API 키
 NEXTAUTH_URL=       # 배포 URL (예: http://localhost:3000)
+CRON_SECRET=        # Vercel Cron 호출 인증 시크릿
+
+# 초기 사용자 생성 시에만 필요
+SEED_HUSBAND_EMAIL=
+SEED_HUSBAND_PASSWORD=  # 영문·숫자를 포함한 8자 이상
+SEED_WIFE_EMAIL=
+SEED_WIFE_PASSWORD=     # 영문·숫자를 포함한 8자 이상
 ```
 
 ---
@@ -79,7 +87,8 @@ npm install
 # DB 스키마 적용
 npx drizzle-kit push
 
-# 시드 데이터 삽입 (husband@family.com / wife@family.com)
+# 위 SEED_* 변수를 설정한 뒤 초기 사용자·샘플 계좌 생성
+# 기존 결제수단과 금융 데이터는 삭제하지 않습니다.
 npm run seed
 
 # 개발 서버 시작
@@ -97,6 +106,7 @@ npm run dev
 | `npm run dev` | 개발 서버 (Turbopack) |
 | `npm run build` | 프로덕션 빌드 |
 | `npm run lint` | ESLint 검사 |
+| `npm test` | 현금흐름 집계 회귀 테스트 |
 | `npm run db:push` | DB 스키마 동기화 |
 | `npm run db:studio` | Drizzle Studio (DB GUI) |
 | `npm run seed` | 시드 데이터 삽입 |
@@ -133,3 +143,5 @@ scripts/seed.ts       # 시드 스크립트
 [Vercel](https://vercel.com)에 배포합니다. `vercel.json`에 배포 설정이 포함되어 있습니다.
 
 환경 변수는 Vercel 프로젝트 설정에서 별도로 등록해야 합니다.
+
+> 현재 배포 모델은 공개 회원가입이 없는 **한 가정 전용**입니다. 남편·아내 계정의 자산과 현금흐름은 기본적으로 가족 합산 조회됩니다.

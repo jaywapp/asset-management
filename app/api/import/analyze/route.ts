@@ -5,13 +5,12 @@ import { classifyEntries } from '@/lib/csv-parsers/classifier'
 
 export async function POST(req: Request) {
   const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const { csvText, filename, paymentMethodId } = body as {
+  const { csvText, filename } = body as {
     csvText?: string
     filename?: string
-    paymentMethodId: string
   }
 
   if (!csvText || !filename) {
@@ -26,6 +25,6 @@ export async function POST(req: Request) {
     )
   }
 
-  const { confirmed, uncertain } = await classifyEntries(parsed.entries, paymentMethodId)
+  const { confirmed, uncertain } = await classifyEntries(parsed.entries)
   return NextResponse.json({ confirmed, uncertain, institution: parsed.institution })
 }

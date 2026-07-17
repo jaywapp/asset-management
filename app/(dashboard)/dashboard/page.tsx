@@ -2,21 +2,13 @@ import { auth } from '@/lib/auth'
 import { NetWorthCard } from '@/components/dashboard/NetWorthCard'
 import { MonthlyFlowCard } from '@/components/dashboard/MonthlyFlowCard'
 import { AIBriefingCard } from '@/components/dashboard/AIBriefingCard'
-
-async function getSummary() {
-  try {
-    const baseUrl = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
-    const res = await fetch(`${baseUrl}/api/assets/summary`, { cache: 'no-store' })
-    if (!res.ok) return null
-    return res.json()
-  } catch {
-    return null
-  }
-}
+import { getFamilyAssetSummary } from '@/lib/finance/summary'
+import { redirect } from 'next/navigation'
 
 export default async function DashboardPage() {
   const session = await auth()
-  const summary = await getSummary()
+  if (!session?.user?.id) redirect('/login')
+  const summary = await getFamilyAssetSummary(session.user.id)
   const now = new Date()
 
   return (
@@ -32,21 +24,23 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <NetWorthCard
-          netWorth={summary?.netWorth ?? 0}
-          portfolioValue={summary?.portfolioValue ?? 0}
-          realEstateValue={summary?.realEstateValue ?? 0}
-          gainLossPct={summary?.portfolioGainLossPct ?? 0}
+          netWorth={summary.netWorth}
+          portfolioValue={summary.portfolioValue}
+          realEstateValue={summary.realEstateValue}
+          cashBalance={summary.cashBalance}
+          liabilities={summary.liabilities}
+          gainLossPct={summary.portfolioGainLossPct}
         />
         <MonthlyFlowCard
-          income={summary?.monthlyIncome ?? 0}
-          expenses={summary?.monthlyExpenses ?? 0}
-          savings={summary?.monthlySavings ?? 0}
+          income={summary.monthlyIncome}
+          expenses={summary.monthlyExpenses}
+          savings={summary.monthlySavings}
         />
         <AIBriefingCard />
       </div>
 
       <div className="text-xs text-gray-400 bg-gray-100 rounded-md p-3">
-        💡 <strong>시작하기:</strong> 설정 메뉴에서 계좌와 종목을 등록하면 AI 팀이 자산을 분석합니다.
+        💡 <strong>시작하기:</strong> 계좌·카드 메뉴에서 자산 정보를 등록하면 가족 합산 현황을 확인할 수 있습니다.
       </div>
     </div>
   )

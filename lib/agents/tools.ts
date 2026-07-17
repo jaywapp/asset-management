@@ -2,6 +2,9 @@ import { db } from '@/lib/db'
 import { accounts, holdings, realEstate, income, expenses } from '@/lib/db/schema'
 import { eq, inArray, gte, lte, and, desc } from 'drizzle-orm'
 import Anthropic from '@anthropic-ai/sdk'
+import { getFamilyUserIds } from '@/lib/family'
+import { calculateCashFlow, isRealExpense } from '@/lib/finance/calculations'
+import { getFamilyAssetSummary } from '@/lib/finance/summary'
 
 export type Tool = Anthropic.Tool
 
@@ -82,8 +85,10 @@ export const agentTools: Tool[] = [
 type ToolInput = Record<string, unknown>
 
 export async function executeToolCall(name: string, input: ToolInput, userId: string): Promise<string> {
+  const familyUserIds = await getFamilyUserIds(userId)
+
   if (name === 'get_portfolio_summary') {
-    const userAccounts = await db.select({ id: accounts.id }).from(accounts).where(eq(accounts.userId, userId))
+    const userAccounts = await db.select({ id: accounts.id }).from(accounts).where(inArray(accounts.userId, familyUserIds))
     const ids = userAccounts.map(a => a.id)
     if (!ids.length) return JSON.stringify({ holdings: [], totalValue: 0 })
     const rows = await db.select().from(holdings).where(inArray(holdings.accountId, ids))
@@ -103,7 +108,7 @@ export async function executeToolCall(name: string, input: ToolInput, userId: st
   }
 
   if (name === 'get_real_estate_summary') {
-    const rows = await db.select().from(realEstate).where(eq(realEstate.userId, userId))
+    const rows = await db.select().from(realEstate).where(inArray(realEstate.userId, familyUserIds))
     return JSON.stringify(rows.map(r => ({
       name: r.name,
       currentValue: Number(r.currentValue),
@@ -117,23 +122,23 @@ export async function executeToolCall(name: string, input: ToolInput, userId: st
     const start = new Date(year, month - 1, 1)
     const end = new Date(year, month, 0)
     const [inc, exp] = await Promise.all([
-      db.select().from(income).where(and(eq(income.userId, userId), gte(income.date, start), lte(income.date, end))),
-      db.select().from(expenses).where(and(eq(expenses.userId, userId), gte(expenses.date, start), lte(expenses.date, end))),
+      db.select().from(income).where(and(inArray(income.userId, familyUserIds), gte(income.date, start), lte(income.date, end))),
+      db.select().from(expenses).where(and(inArray(expenses.userId, familyUserIds), gte(expenses.date, start), lte(expenses.date, end))),
     ])
-    const fixedExp = exp.filter(e => e.isFixed)
-    const variableExp = exp.filter(e => !e.isFixed)
-    const totalIncome = inc.reduce((s, i) => s + Number(i.amount), 0)
-    const totalExpenses = exp.reduce((s, e) => s + Number(e.amount), 0)
+    const realExpenses = exp.filter(e => isRealExpense(e.transferType))
+    const fixedExp = realExpenses.filter(e => e.isFixed)
+    const variableExp = realExpenses.filter(e => !e.isFixed)
+    const cashFlow = calculateCashFlow(inc, realExpenses)
     return JSON.stringify({
       year, month,
-      totalIncome,
-      totalExpenses,
+      totalIncome: cashFlow.income,
+      totalExpenses: cashFlow.expenses,
       totalFixedExpenses: fixedExp.reduce((s, e) => s + Number(e.amount), 0),
       totalVariableExpenses: variableExp.reduce((s, e) => s + Number(e.amount), 0),
-      netSavings: totalIncome - totalExpenses,
-      savingsRate: totalIncome > 0 ? ((totalIncome - totalExpenses) / totalIncome * 100).toFixed(1) + '%' : '0%',
+      netSavings: cashFlow.savings,
+      savingsRate: cashFlow.savingsRate.toFixed(1) + '%',
       incomeByCategory: inc.reduce((acc: Record<string, number>, i) => { acc[i.category] = (acc[i.category] ?? 0) + Number(i.amount); return acc }, {}),
-      expensesByCategory: exp.reduce((acc: Record<string, number>, e) => { acc[e.category] = (acc[e.category] ?? 0) + Number(e.amount); return acc }, {}),
+      expensesByCategory: realExpenses.reduce((acc: Record<string, number>, e) => { acc[e.category] = (acc[e.category] ?? 0) + Number(e.amount); return acc }, {}),
       fixedExpensesByCategory: fixedExp.reduce((acc: Record<string, number>, e) => { acc[e.category] = (acc[e.category] ?? 0) + Number(e.amount); return acc }, {}),
       variableExpensesByCategory: variableExp.reduce((acc: Record<string, number>, e) => { acc[e.category] = (acc[e.category] ?? 0) + Number(e.amount); return acc }, {}),
       fixedExpenseItems: fixedExp.map(e => ({ category: e.category, amount: Number(e.amount), description: e.description, isRecurring: e.isRecurring })),
@@ -151,20 +156,20 @@ export async function executeToolCall(name: string, input: ToolInput, userId: st
       const start = new Date(year, month - 1, 1)
       const end = new Date(year, month, 0)
       const [inc, exp] = await Promise.all([
-        db.select().from(income).where(and(eq(income.userId, userId), gte(income.date, start), lte(income.date, end))),
-        db.select().from(expenses).where(and(eq(expenses.userId, userId), gte(expenses.date, start), lte(expenses.date, end))),
+        db.select().from(income).where(and(inArray(income.userId, familyUserIds), gte(income.date, start), lte(income.date, end))),
+        db.select().from(expenses).where(and(inArray(expenses.userId, familyUserIds), gte(expenses.date, start), lte(expenses.date, end))),
       ])
-      const totalIncome = inc.reduce((s, i) => s + Number(i.amount), 0)
-      const totalExpenses = exp.reduce((s, e) => s + Number(e.amount), 0)
-      const fixedExpenses = exp.filter(e => e.isFixed).reduce((s, e) => s + Number(e.amount), 0)
+      const realExpenses = exp.filter(e => isRealExpense(e.transferType))
+      const cashFlow = calculateCashFlow(inc, realExpenses)
+      const fixedExpenses = realExpenses.filter(e => e.isFixed).reduce((s, e) => s + Number(e.amount), 0)
       results.push({
         year, month,
-        totalIncome,
-        totalExpenses,
+        totalIncome: cashFlow.income,
+        totalExpenses: cashFlow.expenses,
         fixedExpenses,
-        variableExpenses: totalExpenses - fixedExpenses,
-        netSavings: totalIncome - totalExpenses,
-        savingsRate: totalIncome > 0 ? +((totalIncome - totalExpenses) / totalIncome * 100).toFixed(1) : 0,
+        variableExpenses: cashFlow.expenses - fixedExpenses,
+        netSavings: cashFlow.savings,
+        savingsRate: +cashFlow.savingsRate.toFixed(1),
       })
     }
     return JSON.stringify(results)
@@ -177,10 +182,9 @@ export async function executeToolCall(name: string, input: ToolInput, userId: st
     const start = new Date(year, month - 1, 1)
     const end = new Date(year, month, 0)
     let rows = await db.select().from(expenses)
-      .where(and(eq(expenses.userId, userId), gte(expenses.date, start), lte(expenses.date, end)))
+      .where(and(inArray(expenses.userId, familyUserIds), gte(expenses.date, start), lte(expenses.date, end)))
       .orderBy(desc(expenses.date))
-    // Exclude transfers — they are not real expenses
-    rows = rows.filter(e => e.transferType === null)
+    rows = rows.filter(e => isRealExpense(e.transferType))
     if (fixedOnly) rows = rows.filter(e => e.isFixed)
     if (category) rows = rows.filter(e => e.category === category)
     if (paymentMethodId) rows = rows.filter(e => e.paymentMethodId === paymentMethodId)
@@ -200,7 +204,7 @@ export async function executeToolCall(name: string, input: ToolInput, userId: st
     const start = new Date(year, month - 1, 1)
     const end = new Date(year, month, 0)
     const rows = await db.select().from(income)
-      .where(and(eq(income.userId, userId), gte(income.date, start), lte(income.date, end)))
+      .where(and(inArray(income.userId, familyUserIds), gte(income.date, start), lte(income.date, end)))
       .orderBy(desc(income.date))
     return JSON.stringify(rows.map(i => ({
       date: i.date.toISOString().split('T')[0],
@@ -215,7 +219,7 @@ export async function executeToolCall(name: string, input: ToolInput, userId: st
     const sixMonthsAgo = new Date()
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
     const rows = await db.select().from(expenses)
-      .where(and(eq(expenses.userId, userId), eq(expenses.isRecurring, true), gte(expenses.date, sixMonthsAgo)))
+      .where(and(inArray(expenses.userId, familyUserIds), eq(expenses.isRecurring, true), gte(expenses.date, sixMonthsAgo)))
       .orderBy(desc(expenses.date))
     // category+description 기준 최신 항목만
     const seen = new Set<string>()
@@ -234,15 +238,7 @@ export async function executeToolCall(name: string, input: ToolInput, userId: st
   }
 
   if (name === 'get_net_worth') {
-    const userAccounts = await db.select({ id: accounts.id }).from(accounts).where(eq(accounts.userId, userId))
-    const ids = userAccounts.map(a => a.id)
-    const [userHoldings, reList] = await Promise.all([
-      ids.length ? db.select().from(holdings).where(inArray(holdings.accountId, ids)) : Promise.resolve([]),
-      db.select().from(realEstate).where(eq(realEstate.userId, userId)),
-    ])
-    const portfolioValue = userHoldings.reduce((s, h) => s + Number(h.quantity) * Number(h.currentPrice), 0)
-    const reValue = reList.reduce((s, r) => s + Number(r.currentValue), 0)
-    return JSON.stringify({ portfolioValue, realEstateValue: reValue, netWorth: portfolioValue + reValue })
+    return JSON.stringify(await getFamilyAssetSummary(userId))
   }
 
   return JSON.stringify({ error: `Unknown tool: ${name}` })

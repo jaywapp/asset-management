@@ -31,15 +31,17 @@ export function MobileNav() {
       {/* 더보기 드로어 */}
       {open && (
         <>
-          <div
+          <button
+            type="button"
+            aria-label="전체 메뉴 닫기"
             className="fixed inset-0 z-40 bg-black/30"
             onClick={() => setOpen(false)}
           />
           <div className="fixed bottom-16 left-0 right-0 z-50 bg-white border-t rounded-t-2xl shadow-lg px-4 pt-4 pb-6">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-semibold text-gray-700">전체 메뉴</span>
-              <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-600">
-                <X size={18} />
+              <button type="button" onClick={() => setOpen(false)} aria-label="전체 메뉴 닫기" className="text-gray-400 hover:text-gray-600">
+                <X size={18} aria-hidden="true" />
               </button>
             </div>
             <div className="grid grid-cols-4 gap-2">
@@ -65,7 +67,7 @@ export function MobileNav() {
       )}
 
       {/* 하단 탭바 */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t bg-white">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t bg-white" aria-label="모바일 주요 메뉴">
         {mainItems.map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
@@ -80,6 +82,9 @@ export function MobileNav() {
           </Link>
         ))}
         <button
+          type="button"
+          aria-expanded={open}
+          aria-label="전체 메뉴"
           onClick={() => setOpen(v => !v)}
           className={cn(
             'flex flex-1 flex-col items-center justify-center py-2 gap-0.5 text-xs transition-colors',

@@ -1,14 +1,24 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { recurringTemplates } from '@/lib/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { paymentMethods, recurringTemplates } from '@/lib/db/schema'
+import { eq, and, inArray } from 'drizzle-orm'
+import { getFamilyUserIds } from '@/lib/family'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
   const body = await req.json()
+  const familyUserIds = await getFamilyUserIds(session.user.id)
+  if (body.paymentMethodId) {
+    const [method] = await db.select({ id: paymentMethods.id }).from(paymentMethods)
+      .where(and(
+        eq(paymentMethods.id, body.paymentMethodId),
+        inArray(paymentMethods.userId, familyUserIds),
+      ))
+    if (!method) return NextResponse.json({ error: 'Invalid payment method' }, { status: 400 })
+  }
 
   const updateData: Record<string, unknown> = {}
   if (body.category !== undefined) updateData.category = body.category
@@ -22,7 +32,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const [row] = await db.update(recurringTemplates)
     .set(updateData)
-    .where(and(eq(recurringTemplates.id, id), eq(recurringTemplates.userId, session.user.id)))
+    .where(and(eq(recurringTemplates.id, id), inArray(recurringTemplates.userId, familyUserIds)))
     .returning()
   if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json(row)
@@ -30,9 +40,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
-  await db.delete(recurringTemplates)
-    .where(and(eq(recurringTemplates.id, id), eq(recurringTemplates.userId, session.user.id)))
+  const familyUserIds = await getFamilyUserIds(session.user.id)
+  const deleted = await db.delete(recurringTemplates)
+    .where(and(eq(recurringTemplates.id, id), inArray(recurringTemplates.userId, familyUserIds)))
+    .returning({ id: recurringTemplates.id })
+  if (!deleted.length) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return new NextResponse(null, { status: 204 })
 }

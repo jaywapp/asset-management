@@ -1,8 +1,8 @@
+import { and, eq, inArray } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { income } from '@/lib/db/schema'
-import { eq, and, inArray } from 'drizzle-orm'
+import { liabilities } from '@/lib/db/schema'
 import { getFamilyUserIds } from '@/lib/family'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -11,13 +11,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { id } = await params
   const body = await req.json()
   const familyUserIds = await getFamilyUserIds(session.user.id)
-  const update: Record<string, unknown> = {}
-  if (body.category !== undefined) update.category = body.category
-  if (body.amount !== undefined) update.amount = body.amount
-  if (body.description !== undefined) update.description = body.description
-  if (body.date !== undefined) update.date = new Date(body.date)
-  const [row] = await db.update(income).set(update)
-    .where(and(eq(income.id, id), inArray(income.userId, familyUserIds)))
+  const balance = Number(body.balance)
+  if (!Number.isFinite(balance) || balance < 0) {
+    return NextResponse.json({ error: 'Balance must be zero or greater' }, { status: 400 })
+  }
+  const [row] = await db.update(liabilities)
+    .set({ balance: String(balance) })
+    .where(and(eq(liabilities.id, id), inArray(liabilities.userId, familyUserIds)))
     .returning()
   if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json(row)
@@ -28,9 +28,9 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
   const familyUserIds = await getFamilyUserIds(session.user.id)
-  const deleted = await db.delete(income)
-    .where(and(eq(income.id, id), inArray(income.userId, familyUserIds)))
-    .returning({ id: income.id })
-  if (deleted.length === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  return NextResponse.json({ success: true })
+  const deleted = await db.delete(liabilities)
+    .where(and(eq(liabilities.id, id), inArray(liabilities.userId, familyUserIds)))
+    .returning({ id: liabilities.id })
+  if (!deleted.length) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  return new NextResponse(null, { status: 204 })
 }

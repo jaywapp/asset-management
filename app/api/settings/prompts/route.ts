@@ -7,7 +7,7 @@ import { DEFAULT_PROMPTS } from '@/lib/agents/prompts'
 
 export async function GET() {
   const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const rows = await db.select().from(agentSettings)
   const saved = Object.fromEntries(rows.map(r => [r.agentName, r.systemPrompt]))
@@ -23,10 +23,11 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { agentName, systemPrompt } = await req.json()
-  if (!agentName || !systemPrompt?.trim()) {
+  if (!(agentName in DEFAULT_PROMPTS) || typeof systemPrompt !== 'string'
+    || !systemPrompt.trim() || systemPrompt.length > 20_000) {
     return NextResponse.json({ error: 'agentName and systemPrompt required' }, { status: 400 })
   }
 
@@ -47,9 +48,12 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { agentName } = await req.json()
+  if (!(agentName in DEFAULT_PROMPTS)) {
+    return NextResponse.json({ error: 'Unknown agent' }, { status: 400 })
+  }
   await db.delete(agentSettings).where(eq(agentSettings.agentName, agentName))
   return NextResponse.json({ success: true })
 }

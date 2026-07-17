@@ -6,7 +6,6 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 export async function classifyEntries(
   entries: ParsedEntry[],
-  paymentMethodId: string
 ): Promise<{ confirmed: ParsedEntry[]; uncertain: ParsedEntry[] }> {
   if (entries.length === 0) return { confirmed: [], uncertain: [] }
 

@@ -4,11 +4,16 @@ import { db } from '@/lib/db'
 import { expenses } from '@/lib/db/schema'
 import { eq, and, gte, lte, lt } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
+import type { ExpenseCategory } from '@/lib/csv-parsers/types'
+
+const EXPENSE_CATEGORIES = new Set<ExpenseCategory>([
+  'food', 'transport', 'housing', 'medical', 'education', 'leisure', 'subscription', 'other',
+])
 
 // GET: 이번 달에 아직 적용되지 않은 반복 고정지출 목록 반환
 export async function GET(req: Request) {
   const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
   const year = parseInt(searchParams.get('year') ?? String(new Date().getFullYear()))
@@ -55,7 +60,7 @@ export async function GET(req: Request) {
 // POST: 반복 고정지출을 이번 달에 일괄 적용
 export async function POST(req: Request) {
   const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { year, month, items } = await req.json() as {
     year: number
@@ -70,7 +75,9 @@ export async function POST(req: Request) {
     items.map(item => ({
       id: createId(),
       userId: session.user.id,
-      category: item.category as any,
+      category: EXPENSE_CATEGORIES.has(item.category as ExpenseCategory)
+        ? item.category as ExpenseCategory
+        : 'other',
       amount: item.amount,
       description: item.description,
       date: targetDate,

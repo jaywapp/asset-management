@@ -9,6 +9,7 @@ import { PaymentMethodTabs } from '@/components/budget/PaymentMethodTabs'
 import { TransferSankey } from '@/components/budget/TransferSankey'
 import { TrendingUp, TrendingDown, Trash2, Camera, Pin, Pencil, X, Check, CheckSquare, RefreshCw } from 'lucide-react'
 import { ImageAnalyzer } from '@/components/ui/image-analyzer'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW', maximumFractionDigits: 0 }).format(n)
@@ -67,6 +68,27 @@ interface EditForm {
   transferToId: string
 }
 
+interface PaymentMethod {
+  id: string
+  name: string
+  type: string
+  isHub: boolean
+  linkedBankId: string | null
+  color: string | null
+}
+
+interface TransferFlow {
+  fromName: string
+  toName: string
+  amount: number
+  transferType: 'internal' | 'external' | null
+}
+
+interface TransferData {
+  hub: PaymentMethod | null
+  flows: TransferFlow[]
+}
+
 export default function BudgetPage() {
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
@@ -82,8 +104,9 @@ export default function BudgetPage() {
   const [description, setDescription] = useState('')
   const [date, setDate] = useState(now.toISOString().split('T')[0])
   const [saving, setSaving] = useState(false)
+  const [submitMessage, setSubmitMessage] = useState('')
   const [showImageAnalyzer, setShowImageAnalyzer] = useState(false)
-  const [pendingEntries, setPendingEntries] = useState<any[]>([])
+  const [pendingEntries, setPendingEntries] = useState<Record<string, unknown>[]>([])
 
   // 이월 금액
   const [carryover, setCarryover] = useState<number | null>(null)
@@ -105,9 +128,9 @@ export default function BudgetPage() {
 
   // 결제수단 탭
   const [selectedTab, setSelectedTab] = useState<string | null>(null)
-  const [paymentMethodsList, setPaymentMethodsList] = useState<any[]>([])
+  const [paymentMethodsList, setPaymentMethodsList] = useState<PaymentMethod[]>([])
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState('')
-  const [transferData, setTransferData] = useState<{ hub: any; flows: any[] } | null>(null)
+  const [transferData, setTransferData] = useState<TransferData | null>(null)
   // 선입금 체크박스
   const [prefundTransfer, setPrefundTransfer] = useState(false)
   // 반복 템플릿 드롭다운
@@ -135,7 +158,7 @@ export default function BudgetPage() {
         fetch(`/api/expenses?year=${year}&month=${month}&transferType=internal`).then(r => r.json()),
       ])
       setTransferData(sankeyData)
-      setTransferEntries(transferRows.map((e: any) => ({ ...e, type: 'expense' as EntryType })))
+      setTransferEntries((transferRows as Entry[]).map((entry) => ({ ...entry, type: 'expense' as EntryType })))
       return
     }
     const pmParam = selectedTab ? `&paymentMethodId=${selectedTab}` : ''
@@ -144,8 +167,8 @@ export default function BudgetPage() {
       fetch(`/api/expenses?year=${year}&month=${month}${pmParam}&transferType=none`).then(r => r.json()),
     ])
     const combined: Entry[] = [
-      ...inc.map((i: any) => ({ ...i, type: 'income' as EntryType })),
-      ...exp.map((e: any) => ({ ...e, type: 'expense' as EntryType })),
+      ...(inc as Entry[]).map((entry) => ({ ...entry, type: 'income' as EntryType })),
+      ...(exp as Entry[]).map((entry) => ({ ...entry, type: 'expense' as EntryType })),
     ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     setEntries(combined)
   }
@@ -166,7 +189,12 @@ export default function BudgetPage() {
   }
 
   useEffect(() => {
-    Promise.all([load(), loadCarryover(), checkRecurring()])
+    const timer = window.setTimeout(() => {
+      void Promise.all([load(), loadCarryover(), checkRecurring()])
+    }, 0)
+    return () => window.clearTimeout(timer)
+    // The three loaders intentionally re-run only when the selected reporting scope changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [year, month, selectedTab])
 
   useEffect(() => {
@@ -177,14 +205,19 @@ export default function BudgetPage() {
     fetch('/api/recurring-templates').then(r => r.json()).then(setRecurringTemplatesList)
   }, [])
 
-  useEffect(() => {
-    setCategory(type === 'income' ? 'salary' : 'food')
-    if (type === 'income') { setIsFixed(false); setIsRecurring(false) }
-  }, [type])
+  function selectEntryType(nextType: EntryType) {
+    setType(nextType)
+    setCategory(nextType === 'income' ? 'salary' : 'food')
+    if (nextType === 'income') {
+      setIsFixed(false)
+      setIsRecurring(false)
+    }
+  }
 
-  useEffect(() => {
-    if (!isFixed) setIsRecurring(false)
-  }, [isFixed])
+  function selectFixed(nextFixed: boolean) {
+    setIsFixed(nextFixed)
+    if (!nextFixed) setIsRecurring(false)
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -206,11 +239,17 @@ export default function BudgetPage() {
           recurringTemplateId: selectedTemplateId || undefined,
         }
 
-    await fetch(endpoint, {
+    setSubmitMessage('')
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
+    if (!response.ok) {
+      setSaving(false)
+      setSubmitMessage('저장하지 못했습니다. 입력값을 확인해 주세요.')
+      return
+    }
 
     if (
       type === 'expense' &&
@@ -245,6 +284,7 @@ export default function BudgetPage() {
     await load()
     await checkRecurring()
     setSaving(false)
+    setSubmitMessage(type === 'income' ? '수입을 추가했습니다.' : '지출을 추가했습니다.')
   }
 
   async function applyRecurring() {
@@ -345,7 +385,8 @@ export default function BudgetPage() {
   function toggleSelect(id: string) {
     setSelectedIds(prev => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   }
@@ -723,6 +764,13 @@ export default function BudgetPage() {
         </>
       )}
 
+      <Tabs defaultValue="summary" className="space-y-3">
+        <TabsList className="grid w-full max-w-sm grid-cols-2">
+          <TabsTrigger value="summary">월 현황</TabsTrigger>
+          <TabsTrigger value="entry">내역 입력</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="summary" className="space-y-2">
       {/* 요약 카드 — 2행 레이아웃 */}
       <div className="space-y-2">
         {/* 1행: 이월 + 수입 + 지출 합계 */}
@@ -796,20 +844,22 @@ export default function BudgetPage() {
           </Card>
         </div>
       </div>
+        </TabsContent>
 
+        <TabsContent value="entry">
       {/* 빠른 입력 폼 */}
       <Card className="border-2 border-dashed border-gray-200">
         <CardContent className="pt-4 pb-4">
           <form onSubmit={handleSubmit}>
             {/* 수입/지출 토글 */}
             <div className="flex gap-2 mb-3">
-              <button type="button" onClick={() => setType('expense')}
+              <button type="button" onClick={() => selectEntryType('expense')}
                 className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${
                   type === 'expense' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}>
                 지출
               </button>
-              <button type="button" onClick={() => setType('income')}
+              <button type="button" onClick={() => selectEntryType('income')}
                 className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${
                   type === 'income' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}>
@@ -849,13 +899,13 @@ export default function BudgetPage() {
             {/* 고정/변동 토글 + 반복 체크박스 (지출일 때만) */}
             {type === 'expense' && (
               <div className="flex gap-2 mb-3 items-center">
-                <button type="button" onClick={() => setIsFixed(false)}
+                <button type="button" onClick={() => selectFixed(false)}
                   className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-colors ${
                     !isFixed ? 'bg-red-100 text-red-700 border border-red-300' : 'bg-gray-50 text-gray-400 border border-gray-200'
                   }`}>
                   변동지출
                 </button>
-                <button type="button" onClick={() => setIsFixed(true)}
+                <button type="button" onClick={() => selectFixed(true)}
                   className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center justify-center gap-1 ${
                     isFixed ? 'bg-orange-100 text-orange-700 border border-orange-300' : 'bg-gray-50 text-gray-400 border border-gray-200'
                   }`}>
@@ -938,8 +988,11 @@ export default function BudgetPage() {
               </Button>
             </div>
           </form>
+          {submitMessage && <p className="mt-3 text-sm text-gray-500" role="status">{submitMessage}</p>}
         </CardContent>
       </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* 내역 목록 */}
       <Card>
@@ -1162,9 +1215,9 @@ export default function BudgetPage() {
                                 <RefreshCw size={9} />
                               </span>
                             )}
-                            {(entry as any).paymentMethodId && (
+                            {entry.paymentMethodId && (
                               <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
-                                {paymentMethodsList.find(m => m.id === (entry as any).paymentMethodId)?.name ?? ''}
+                                {paymentMethodsList.find(m => m.id === entry.paymentMethodId)?.name ?? ''}
                               </span>
                             )}
                             {entry.description && (

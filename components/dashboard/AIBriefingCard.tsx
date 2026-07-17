@@ -53,13 +53,13 @@ export function AIBriefingCard() {
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm text-blue-600 flex items-center gap-2">
-            <Bot size={16} />
+            <Bot size={16} aria-hidden="true" />
             CFO 브리핑
           </CardTitle>
           {requested && !loading && (
-            <button onClick={fetchBriefing}
+            <button type="button" onClick={fetchBriefing} aria-label="CFO 브리핑 새로고침"
               className="text-blue-400 hover:text-blue-600 transition-colors">
-              <RefreshCw size={13} />
+              <RefreshCw size={13} aria-hidden="true" />
             </button>
           )}
         </div>
@@ -70,7 +70,7 @@ export function AIBriefingCard() {
             <p className="text-xs text-gray-400 text-center">AI CFO에게 오늘의 자산 현황을 물어보세요</p>
             <Button size="sm" onClick={fetchBriefing}
               className="bg-blue-500 hover:bg-blue-600 text-xs h-7 px-3">
-              <Bot size={12} className="mr-1" />브리핑 요청
+               <Bot size={12} className="mr-1" aria-hidden="true" />브리핑 요청
             </Button>
           </div>
         ) : loading ? (

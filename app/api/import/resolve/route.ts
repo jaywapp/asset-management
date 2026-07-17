@@ -11,7 +11,7 @@ interface Answer {
 
 export async function POST(req: Request) {
   const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { uncertain, answers }: { uncertain: ParsedEntry[]; answers: Answer[] } = await req.json()
 

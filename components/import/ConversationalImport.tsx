@@ -4,13 +4,13 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2, CheckCircle, HelpCircle } from 'lucide-react'
-import type { ParsedEntry } from '@/lib/csv-parsers/types'
+import type { ExpenseCategory, IncomeCategory, ParsedEntry } from '@/lib/csv-parsers/types'
 
 const fmt = (n: number) => new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW', maximumFractionDigits: 0 }).format(n)
 
 type Step = 'idle' | 'analyzing' | 'resolving' | 'confirming' | 'done'
 
-export function ConversationalImport({ paymentMethods }: { paymentMethods: any[] }) {
+export function ConversationalImport({ paymentMethods }: { paymentMethods: { id: string; name: string }[] }) {
   const [pmId, setPmId] = useState('')
   const [step, setStep] = useState<Step>('idle')
   const [confirmed, setConfirmed] = useState<ParsedEntry[]>([])
@@ -119,7 +119,13 @@ export function ConversationalImport({ paymentMethods }: { paymentMethods: any[]
                     {entry.options.map(opt => (
                       <button
                         key={opt}
-                        onClick={() => setAnswers(prev => ({ ...prev, [entry.tempId]: { ...prev[entry.tempId], category: opt as any } }))}
+                        onClick={() => setAnswers(prev => ({
+                          ...prev,
+                          [entry.tempId]: {
+                            ...prev[entry.tempId],
+                            category: opt as ExpenseCategory | IncomeCategory,
+                          },
+                        }))}
                         className={`px-3 py-1 rounded-full text-xs border transition-colors ${
                           answers[entry.tempId]?.category === opt
                             ? 'bg-blue-600 text-white border-blue-600'

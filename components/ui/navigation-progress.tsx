@@ -55,7 +55,11 @@ export function NavigationProgress() {
 
   // pathname 변경 → 완료
   useEffect(() => {
-    if (visible) completeProgress()
+    const timer = window.setTimeout(() => {
+      if (visible) completeProgress()
+    }, 0)
+    return () => window.clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname])
 
   if (!visible && width === 0) return null

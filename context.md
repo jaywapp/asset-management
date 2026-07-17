@@ -22,7 +22,7 @@
   - 필수 헤더: `User-Agent: Mozilla/5.0 (iPhone...)`, `Referer: https://m.stock.naver.com/`
 
 ### 주식 시세 갱신
-- **폐기됨:** `yahoo-finance2` npm 라이브러리 — 제거됨, 재설치 금지
+- **폐기됨:** `yahoo-finance2` npm 라이브러리 — 직접 HTTP 호출로 대체, 재설치 금지
 - **국내 종목 (.KS / .KQ):** `https://m.stock.naver.com/api/stock/{6자리코드}/basic`
   - `closePrice` 필드가 `"356,500"` 형태의 문자열 → `.replace(/,/g, '')` 후 파싱 필요
 - **해외 종목:** `https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=1d`
@@ -43,6 +43,14 @@ isDomestic(ticker) = ticker.endsWith('.KS') || ticker.endsWith('.KQ') || /^\d{6}
 ### income 테이블
 - `isRecurring: boolean` — 반복 수입 여부
 
+### accounts / payment_methods
+- `currency`, `exchangeRateToKrw` — 원화 환산용 수동 환율
+- `payment_methods.balance` — 은행 계좌의 현재 잔액
+- `payment_methods.includeInNetWorth` — 순자산 중복 집계 방지
+
+### liabilities 테이블
+- 주택담보·신용·전세·카드·기타 부채의 잔액, 금리, 월 상환액 관리
+
 ## CFO 에이전트 툴 목록 (`lib/agents/tools.ts`)
 | 툴 | 설명 |
 |---|---|
@@ -53,7 +61,7 @@ isDomestic(ticker) = ticker.endsWith('.KS') || ticker.endsWith('.KQ') || /^\d{6}
 | `get_expense_items` | 월별 지출 개별 항목 (fixedOnly, category 필터) |
 | `get_income_items` | 월별 수입 개별 항목 |
 | `get_recurring_expenses` | 반복 고정지출 목록 |
-| `get_net_worth` | 전체 순자산 (금융 + 부동산) |
+| `get_net_worth` | 가족 순자산 (투자 + 현금 + 부동산 - 부채, 외화 환산) |
 
 > ⚠️ `agentTools` 배열과 `executeToolCall` 분기는 수동으로 동기화해야 함 — 하나 추가 시 둘 다 수정 필요
 
@@ -70,8 +78,9 @@ isDomestic(ticker) = ticker.endsWith('.KS') || ticker.endsWith('.KQ') || /^\d{6}
 ## 환경 설정
 - `.env.local` 필수: `DATABASE_URL` (Neon), `AUTH_SECRET`, `ANTHROPIC_API_KEY`, `NEXTAUTH_URL`
 - DB 초기화: PowerShell에서 `.env.local` 로드 후 `npx drizzle-kit push` → `npm run seed`
-- 시드 계정: `husband@family.com` / `wife@family.com`
+- 시드 실행 전 `SEED_HUSBAND_EMAIL`, `SEED_HUSBAND_PASSWORD`, `SEED_WIFE_EMAIL`, `SEED_WIFE_PASSWORD` 설정
+- 시드는 기존 결제수단과 금융 데이터를 삭제하지 않음
 
 ## 보류된 기능
 - **카드사 자동 연동:** 금융결제원 오픈뱅킹/마이데이터 라이선스 필요 → 현재 범위 밖
-- **CSV 업로드:** 카드사별 파서 — 향후 구현 예정
+- **CSV 업로드:** 현재 지원 기관 외의 카드사별 파서 확대

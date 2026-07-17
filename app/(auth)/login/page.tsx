@@ -31,7 +31,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <main className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl text-gray-900">이나네 가족자산</CardTitle>
@@ -41,19 +41,20 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1">
               <Label htmlFor="email" className="text-gray-700">이메일</Label>
-              <Input id="email" name="email" type="email" placeholder="email@example.com" required />
+              <Input id="email" name="email" type="email" autoComplete="email"
+                placeholder="email@example.com" required />
             </div>
             <div className="space-y-1">
               <Label htmlFor="password" className="text-gray-700">비밀번호</Label>
-              <Input id="password" name="password" type="password" required />
+              <Input id="password" name="password" type="password" autoComplete="current-password" required />
             </div>
-            {error && <p className="text-sm text-red-500">{error}</p>}
+            {error && <p className="text-sm text-red-500" role="alert">{error}</p>}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? '로그인 중...' : '로그인'}
             </Button>
           </form>
         </CardContent>
       </Card>
-    </div>
+    </main>
   )
 }
