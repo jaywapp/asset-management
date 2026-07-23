@@ -40,6 +40,11 @@ CFO 에이전트는 다음 도구를 사용합니다:
 ### 자동 리포트 (Cron)
 - 일간 / 주간 / 월간 AI 리포트 자동 생성 및 저장
 
+### 제보
+- 로그인한 사용자가 앱 안에서 문제나 개선 의견을 전송
+- 서버에서 `jaywapp/asset-management` 저장소의 `제보` 라벨 Issue로 등록
+- 앱 버전과 웹 플랫폼만 포함하며 자산 정보, 계정 정보, 로그는 전송하지 않음
+
 ---
 
 ## 기술 스택
@@ -66,6 +71,7 @@ DATABASE_URL=       # Neon PostgreSQL 연결 문자열
 AUTH_SECRET=        # NextAuth 서명 시크릿
 ANTHROPIC_API_KEY=  # Claude API 키
 NEXTAUTH_URL=       # 배포 URL (예: http://localhost:3000)
+GITHUB_ISSUES_TOKEN= # 제보 Issue 생성 전용 토큰
 ```
 
 ---
@@ -133,3 +139,17 @@ scripts/seed.ts       # 시드 스크립트
 [Vercel](https://vercel.com)에 배포합니다. `vercel.json`에 배포 설정이 포함되어 있습니다.
 
 환경 변수는 Vercel 프로젝트 설정에서 별도로 등록해야 합니다.
+
+`main` 브랜치에 push하면 GitHub Actions가 테스트와 lint를 통과한 뒤
+Vercel production 환경을 가져와 prebuilt 산출물을 배포합니다. 워크플로에는
+다음 Repository Secret이 필요합니다.
+
+- `VERCEL_TOKEN`: Vercel 배포 토큰
+- `VERCEL_ORG_ID`: 연결된 Vercel 팀 또는 사용자 ID
+- `VERCEL_PROJECT_ID`: 연결된 Vercel 프로젝트 ID
+
+앱의 `제보` 기능을 사용하려면 Vercel Production 환경에
+`GITHUB_ISSUES_TOKEN`을 등록해야 합니다. 이 토큰에는
+`jaywapp/asset-management` 저장소의 Issues 쓰기 권한만 부여하고, 저장소에는
+`제보` 라벨을 미리 생성해야 합니다. 토큰과 라벨 등록은 최초 배포 전에
+수동으로 완료합니다.
