@@ -3,7 +3,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, TrendingUp, Building2, Wallet, Bot, CreditCard, Settings, MoreHorizontal, X } from 'lucide-react'
+import { LayoutDashboard, TrendingUp, Building2, Wallet, Bot, CreditCard, Settings, MessageSquareWarning, MoreHorizontal, X } from 'lucide-react'
 
 const mainItems = [
   { href: '/dashboard', label: '홈', icon: LayoutDashboard },
@@ -16,6 +16,7 @@ const moreItems = [
   { href: '/real-estate', label: '부동산', icon: Building2 },
   { href: '/ai-team', label: 'AI팀', icon: Bot },
   { href: '/settings', label: '설정', icon: Settings },
+  { href: '/feedback', label: '제보', icon: MessageSquareWarning },
 ]
 
 const allItems = [...mainItems, ...moreItems]

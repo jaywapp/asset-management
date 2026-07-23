@@ -5,7 +5,7 @@ import { signOut } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 import {
   LayoutDashboard, TrendingUp, Building2,
-  Wallet, Bot, Settings, LogOut, CreditCard
+  Wallet, Bot, Settings, LogOut, CreditCard, MessageSquareWarning
 } from 'lucide-react'
 
 const navItems = [
@@ -16,6 +16,7 @@ const navItems = [
   { href: '/accounts', label: '계좌·카드', icon: CreditCard },
   { href: '/ai-team', label: 'AI 팀', icon: Bot },
   { href: '/settings', label: '설정', icon: Settings },
+  { href: '/feedback', label: '제보', icon: MessageSquareWarning },
 ]
 
 export function Sidebar() {
